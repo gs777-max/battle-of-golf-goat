@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.5</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap');
 
@@ -851,6 +851,119 @@
   <div id="toastArea"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="assets/lib/GLTFLoader.js"></script>
+  <script src="assets/lib/meshopt_decoder.js"></script>
+  <script>
+  /* ===== v4.3 HQアセット (読込失敗時は従来表示に自動フォールバック) ===== */
+  window.HQW = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
+  (function(){
+    var TL = new THREE.TextureLoader();
+    function loadTex(name, srgb, rx, ry){
+      var t = TL.load('assets/textures/' + name + '.png', function(){
+        window.HQW._ready[name] = 1;
+        var w = window.HQW._waiters[name] || []; window.HQW._waiters[name] = [];
+        for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
+      });
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      if(rx) t.repeat.set(rx, ry || rx);
+      if(srgb) t.encoding = THREE.sRGBEncoding;
+      window.HQW.tex[name] = t;
+      return t;
+    }
+    window.HQW.whenTex = function(name, cb){
+      if(window.HQW._ready[name]){ cb(); }
+      else { (window.HQW._waiters[name] = window.HQW._waiters[name] || []).push(cb); }
+    };
+    loadTex('skin_map', 1); loadTex('skin_nrm'); loadTex('skin_rgh'); loadTex('eye', 1);
+    loadTex('head_map', 1); loadTex('head_nrm');
+    ['watu','matuya','tiiger','junbo','mcilro','decham'].forEach(function(k){ loadTex('head_' + k, 1); loadTex('skin_' + k, 1); });
+    loadTex('pants_map', 1); loadTex('pants_nrm'); loadTex('pants_rgh');
+    loadTex('shirt_nrm'); loadTex('shirt_rgh');
+    loadTex('grass_map', 1, 26, 26); loadTex('grass_nrm', 0, 26, 26); loadTex('grass_rgh', 0, 26, 26);
+    loadTex('leaf_map', 1); loadTex('leaf_nrm');
+    loadTex('stone_map', 1); loadTex('stone_nrm'); loadTex('stone_rgh');
+    loadTex('bark_map', 1); loadTex('bark_nrm');
+    window.HQW.loadParts = function(){
+      if(window.HQW._started) return; window.HQW._started = 1;
+      try{
+        var loader = new THREE.GLTFLoader();
+        if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+        loader.load('assets/models/hero_world.glb', function(gltf){
+          var parts = {};
+          gltf.scene.children.forEach(function(root){ if(root && root.name) parts[root.name] = root; });
+          if(Object.keys(parts).length < 10) return;
+          window.HQW.parts = parts;
+          var pend = window.HQW.pending.splice(0);
+          for(var i=0;i<pend.length;i++){ try{ window.HQW.applyGolfer(pend[i][0], pend[i][1]); }catch(e){} }
+        }, undefined, function(){});
+      }catch(e){}
+    };
+    window.HQW.enqueueGolfer = function(g, ctx){
+      if(window.HQW.parts){ try{ window.HQW.applyGolfer(g, ctx); }catch(e){} }
+      else { window.HQW.pending.push([g, ctx]); window.HQW.loadParts(); }
+    };
+    var INV = new THREE.MeshBasicMaterial(); INV.visible = false;
+    window.HQW.applyGolfer = function(g, ctx){
+      var P = window.HQW.parts; if(!P) return;
+      var T = window.HQW.tex;
+      var sm = ctx.shirtMat, pm = ctx.pantsMat, sk = ctx.skinMat;
+      if(!sm.userData.hq){ sm.userData.hq = 1; if(T.shirt_nrm){ sm.normalMap = T.shirt_nrm; sm.roughnessMap = T.shirt_rgh; } sm.needsUpdate = true; }
+      if(!pm.userData.hq){ pm.userData.hq = 1; if(T.pants_map){ pm.map = T.pants_map; pm.normalMap = T.pants_nrm; pm.roughnessMap = T.pants_rgh; } pm.needsUpdate = true; }
+      if(!sk.userData.hq){ sk.userData.hq = 1; if(T.skin_nrm){ sk.normalMap = T.skin_nrm; sk.roughnessMap = T.skin_rgh; } sk.needsUpdate = true; }
+      var headM = sk.clone();
+      /* v4.4: パレット肌色から色調を導出し全員同一肌色を是正 (マップ平均 (197,153,121) で正規化) */
+      var _bc = new THREE.Color(ctx.skinMat.color.getHex());
+      var _tint = new THREE.Color(Math.min(1, _bc.r / 0.773), Math.min(1, _bc.g / 0.600), Math.min(1, _bc.b / 0.475));
+      var _vk = ctx.charId ? String(ctx.charId).toLowerCase() : null;
+      var _vH = (_vk && T['head_' + _vk]) ? T['head_' + _vk] : null; /* v4.4是正2: _readyゲート廃止(golf側と同件) */
+      var _vS = (_vk && T['skin_' + _vk]) ? T['skin_' + _vk] : null;
+      if(_vS && !sk.userData.vApplied){ sk.userData.vApplied = 1; sk.map = _vS; sk.color.set(0xffffff); sk.needsUpdate = true; }
+      if(_vH){ headM.map = _vH; headM.normalMap = T.head_nrm; headM.color.set(0xffffff); }
+      else if(T.head_map){ headM.map = T.head_map; headM.normalMap = T.head_nrm; headM.color.copy(_tint); } headM.roughness = 1.0; headM.envMapIntensity = 0.5; headM.needsUpdate = true;
+      if(T.skin_map){ sk.color.copy(_tint); } sk.roughness = 1.0; sk.envMapIntensity = 0.5; sk.needsUpdate = true;
+      var strawM = new THREE.MeshStandardMaterial({ color: 0xb08a34, roughness: 0.9, envMapIntensity: 0.35 });
+      var hatM2 = (ctx.hatType === 'straw') ? strawM : new THREE.MeshStandardMaterial({ color: ctx.hatCol, roughness: 0.55 });
+      var SLOT = { MAT_SKIN: sk, MAT_HEAD: headM, MAT_SHIRT: sm, MAT_PANTS: pm, MAT_HAT: hatM2, MAT_STRAW: strawM,
+        MAT_SHOE: ctx.shoeMat, MAT_SHOE2: ctx.toeMat,
+        MAT_DARK: new THREE.MeshStandardMaterial({ color: 0x181820, roughness: 0.5, metalness: 0.2 }),
+        MAT_METAL: new THREE.MeshStandardMaterial({ color: 0xd8e2f0, roughness: 0.15, metalness: 0.92 }),
+        MAT_GOLD: new THREE.MeshStandardMaterial({ color: 0xffd466, roughness: 0.2, metalness: 0.9 }),
+        MAT_WHITE: new THREE.MeshStandardMaterial({ color: 0xf6f6f6, roughness: 0.5 }),
+        MAT_EYE: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, map: T.eye || null }) };
+      var put = function(name, parent){
+        var tpl = P[name]; if(!tpl || !parent) return null;
+        var o = tpl.clone();
+        o.traverse(function(n){ if(n.isMesh){ n.castShadow = true; n.userData.hqPart = true; var mn = n.material && n.material.name; if(mn && SLOT[mn]) n.material = SLOT[mn]; } });
+        parent.add(o);
+        return o;
+      };
+      var bodyMats = [ctx.shirtMat, ctx.pantsMat, ctx.skinMat, ctx.hatMat, ctx.shoeMat, ctx.toeMat];
+      var hideBody = function(grp){
+        if(!grp) return;
+        for(var i=0;i<grp.children.length;i++){ var c = grp.children[i]; if(c.isMesh && c !== ctx.torso && !c.userData.hqPart && bodyMats.indexOf(c.material) >= 0) c.visible = false; }
+      };
+      var J = ctx.joints;
+      for(var i=0;i<2;i++){
+        put('thigh', ctx.legs[i]); put('shin', ctx.knees[i]); put('shoe', ctx.ankles[i]); put('toe', ctx.ankles[i]);
+        hideBody(ctx.legs[i]); hideBody(ctx.knees[i]); hideBody(ctx.ankles[i]);
+      }
+      put('pelvis', J.hips); put('belt', J.hips); hideBody(J.hips);
+      put('torso', ctx.torso); ctx.torso.material = INV; hideBody(J.torso);
+      put('head', J.head); put('earL', J.head); put('earR', J.head); put('nose', J.head);
+      if(ctx.hatType === 'cap'){ put('cap', J.head); put('cap_brim', J.head); put('cap_logo', J.head); }
+      else if(ctx.hatType === 'visor'){ put('cap_brim', J.head); }
+      else if(ctx.hatType === 'straw'){ put('straw', J.head); put('straw_top', J.head); }
+      else { put('flat', J.head); }
+      hideBody(J.head);
+      put('upperarm', J.shoulderC); put('upperarm', J.shoulderF);
+      put('forearm', J.elbowC); put('forearm', J.elbowF);
+      put('hand', J.wristC); put('glove', J.wristC); put('hand', J.wristF);
+      hideBody(J.shoulderC); hideBody(J.shoulderF); hideBody(J.elbowC); hideBody(J.elbowF); hideBody(J.wristC); hideBody(J.wristF);
+      put('clubw_grip', ctx.clubGroup); put('clubw_shaft', ctx.clubGroup); put('clubw_head', ctx.clubGroup);
+      for(var ci=0; ci<ctx.clubGroup.children.length; ci++){ var cc = ctx.clubGroup.children[ci]; if(cc.isMesh && !cc.userData.hqPart) cc.visible = false; }
+    };
+  })();
+  </script>
   <script>
     "use strict";
     /* =========================================================================
@@ -864,11 +977,11 @@
 
     var CHAR_PALETTE = {
       Watu: { shirt: 0xf2e7c9, pants: 0x3c3528, cap: 0xd6a11e, skin: 0xeab98e, accent: 0xffd875 },
-      Matuya: { shirt: 0x1f4e82, pants: 0xeaeef7, cap: 0xffffff, skin: 0xeab98e, accent: 0x5ce1e6 },
+      Matuya: { shirt: 0x1f4e82, pants: 0xeaeef7, cap: 0xffffff, skin: 0xe8b184, accent: 0x5ce1e6 },
       TIiger: { shirt: 0xc91a25, pants: 0x15161c, cap: 0x14151a, skin: 0x8d5b36, accent: 0xff4d5a },
       Junbo: { shirt: 0xe87417, pants: 0x22232b, cap: 0xf5f5f5, skin: 0xe5b386, accent: 0xffb84d },
       McIlro: { shirt: 0x2665c2, pants: 0xdde5f4, cap: 0x1b2c4d, skin: 0xf2c8a2, accent: 0x68b5ff },
-      DeCham: { shirt: 0xebedf5, pants: 0x2a2f3d, cap: 0x282c38, skin: 0xf2c8a2, accent: 0xff8547 }
+      DeCham: { shirt: 0xebedf5, pants: 0x2a2f3d, cap: 0x282c38, skin: 0xe2aa7c, accent: 0xff8547 }
     };
 
     var AREA_THEMES = [
@@ -1042,7 +1155,7 @@
 
     var container = document.getElementById("gl");
     var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 820 ? 1.5 : 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1096,10 +1209,14 @@
     }
 
     var grassAlbedo = makeProceduralTex(function (ctx, w, h) {
-      for (var s = 0; s < 8; s++) {
-        ctx.fillStyle = (s % 2 === 0) ? THEME.grassA : THEME.grassB;
-        ctx.fillRect(0, s * (h / 8), w, h / 8);
+      ctx.fillStyle = THEME.grassA; ctx.fillRect(0, 0, w, h);
+      for (var bs = 0; bs < 300; bs++) {
+        var bx2 = Math.random() * w, by2 = Math.random() * h, br2 = 12 + Math.random() * 52;
+        ctx.globalAlpha = 0.10 + Math.random() * 0.13;
+        ctx.fillStyle = Math.random() < 0.55 ? THEME.grassB : (Math.random() < 0.5 ? "#0c2c16" : "#7fae62");
+        ctx.beginPath(); ctx.arc(bx2, by2, br2, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.globalAlpha = 1;
       for (var i = 0; i < 6000; i++) {
         var x = Math.random() * w, y = Math.random() * h;
         ctx.fillStyle = Math.random() < 0.5 ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.06)";
@@ -1209,8 +1326,8 @@
     var sunLight = new THREE.DirectionalLight(THEME.sunColor, 1.45);
     sunLight.position.set(58, 74, -85);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.mapSize.width = window.innerWidth < 820 ? 1024 : 2048;
+    sunLight.shadow.mapSize.height = window.innerWidth < 820 ? 1024 : 2048;
     sunLight.shadow.camera.near = 10;
     sunLight.shadow.camera.far = 260;
     var sBox = 95;
@@ -1291,13 +1408,24 @@
         pos.setY(i, terrainY(pos.getX(i), pos.getZ(i)));
       }
       geo.computeVertexNormals();
+      var gCols = new Float32Array(pos.count * 3);
+      for (var ci2 = 0; ci2 < pos.count; ci2++) {
+        var vx2 = pos.getX(ci2), vz2 = pos.getZ(ci2);
+        var nn2 = 0.90 + 0.10 * Math.sin(vx2 * 0.11 + vz2 * 0.07) * Math.cos(vz2 * 0.09 - vx2 * 0.05);
+        var pp2 = (Math.sin(vx2 * 0.021 + 3.1) * Math.cos(vz2 * 0.019 - 1.2) > 0.55) ? 0.90 : 1.0;
+        var vv2 = nn2 * pp2;
+        gCols[ci2 * 3] = vv2 * 0.95; gCols[ci2 * 3 + 1] = vv2; gCols[ci2 * 3 + 2] = vv2 * 0.93;
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(gCols, 3));
       var mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
         map: grassAlbedo,
         bumpMap: grassBump,
         bumpScale: 0.08,
         roughness: 0.82,
         metalness: 0.04
       });
+      if (window.HQW) HQW.whenTex('grass_map', function(){ mat.map = HQW.tex.grass_map; mat.normalMap = HQW.tex.grass_nrm; mat.roughnessMap = HQW.tex.grass_rgh; mat.bumpMap = null; mat.needsUpdate = true; });
       var ground = new THREE.Mesh(geo, mat);
       ground.receiveShadow = true;
       groundMesh = ground;
@@ -1376,8 +1504,10 @@
       var goldMat = new THREE.MeshStandardMaterial({ color: 0xffcf56, roughness: 0.24, metalness: 0.86 });
       var marbMat = new THREE.MeshStandardMaterial({ map: marbleTex, roughness: 0.35, metalness: 0.08 });
       var stoneMat = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.85, metalness: 0.06 });
+      if (window.HQW) HQW.whenTex('stone_map', function(){ stoneMat.map = HQW.tex.stone_map; stoneMat.normalMap = HQW.tex.stone_nrm; stoneMat.roughnessMap = HQW.tex.stone_rgh; stoneMat.needsUpdate = true; });
       var vermMat = new THREE.MeshStandardMaterial({ color: 0xc8251d, roughness: 0.42, metalness: 0.12 });
       var darkWood = new THREE.MeshStandardMaterial({ color: 0x2b1e16, roughness: 0.75 });
+      if (window.HQW) HQW.whenTex('bark_map', function(){ darkWood.map = HQW.tex.bark_map; darkWood.normalMap = HQW.tex.bark_nrm; darkWood.needsUpdate = true; });
 
       function makeTorii(x, z, rotY, sc, matOverride) {
         var g = new THREE.Group();
@@ -1406,6 +1536,7 @@
         tr.castShadow = true;
         g.add(tr);
         var cMat = new THREE.MeshStandardMaterial({ color: crownColor, roughness: 0.78 });
+        if (window.HQW) HQW.whenTex('leaf_map', function(){ cMat.normalMap = HQW.tex.leaf_nrm; cMat.bumpMap = HQW.tex.leaf_map; cMat.bumpScale = 0.6; cMat.needsUpdate = true; });
         if (tall) {
           var cone = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7.2, 10), cMat);
           cone.position.y = 6.2; cone.castShadow = true;
@@ -1687,8 +1818,723 @@
     })();
 
     /* =========================================================================
+       v4.4レイヤー：象徴建築のジオメトリ作り込み＋植生密度＋遠景/霧/空の改善
+       ・既存の生成関数には一切手を入れず、エリア生成後に追加ジオメトリを足す。
+       ・江戸は黄泉・黒金仕様を維持（白壁化しない）。白漆喰＋瓦＋石垣は京都側で表現。
+       ========================================================================= */
+    (function buildWorldV44Layer() {
+      var goldM = new THREE.MeshStandardMaterial({ color: 0xffcf56, roughness: 0.24, metalness: 0.86 });
+      var goldDim = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.38, metalness: 0.8 });
+      var whiteM = new THREE.MeshStandardMaterial({ color: 0xf2ede0, roughness: 0.82, metalness: 0.02 });
+      var tileM = new THREE.MeshStandardMaterial({ color: 0x39424f, roughness: 0.55, metalness: 0.22 });
+      var tileDarkM = new THREE.MeshStandardMaterial({ color: 0x1d2027, roughness: 0.5, metalness: 0.3 });
+      var blackM = new THREE.MeshStandardMaterial({ color: 0x14151d, roughness: 0.58, metalness: 0.12 });
+      var stoneM = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.88, metalness: 0.05 });
+      var marbM = new THREE.MeshStandardMaterial({ map: marbleTex, roughness: 0.35, metalness: 0.08 });
+      var vermM = new THREE.MeshStandardMaterial({ color: 0xc8251d, roughness: 0.42, metalness: 0.12 });
+      var woodM = new THREE.MeshStandardMaterial({ color: 0x4a3421, roughness: 0.78 });
+      var slateM = new THREE.MeshStandardMaterial({ color: 0x46586e, roughness: 0.5, metalness: 0.35 });
+      var greenRoofM = new THREE.MeshStandardMaterial({ color: 0x1e4d32, roughness: 0.7 });
+
+      var v44count = 0;
+      function bx(parent, w, h, d, mat, x, y, z, ry) {
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+        m.castShadow = true; m.receiveShadow = true; parent.add(m); v44count++; return m;
+      }
+      function cyl(parent, rt, rb, h, seg, mat, x, y, z) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+        m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); v44count++; return m;
+      }
+      /* 反りのある屋根（軒反りプロファイルを Extrude した本格瓦屋根スラブ＋棟＋軒先の跳ね上げ） */
+      function soriRoof(w, d, h, mat, ridgeMat) {
+        var g = new THREE.Group();
+        var sh = new THREE.Shape();
+        sh.moveTo(-w / 2, 0);
+        sh.quadraticCurveTo(-w * 0.20, h * 0.95, 0, h);
+        sh.quadraticCurveTo(w * 0.20, h * 0.95, w / 2, 0);
+        sh.lineTo(w / 2 - 0.32, -0.30); sh.lineTo(-w / 2 + 0.32, -0.30); sh.closePath();
+        var geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
+        geo.translate(0, 0, -d / 2);
+        var slab = new THREE.Mesh(geo, mat); slab.castShadow = true; slab.receiveShadow = true; g.add(slab); v44count++;
+        var ridge = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, d * 0.92), ridgeMat || mat);
+        ridge.position.y = h + 0.08; ridge.castShadow = true; g.add(ridge); v44count++;
+        [-1, 1].forEach(function (sx) { [-1, 1].forEach(function (sz) {
+          var tip = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.16, 0.85), mat);
+          tip.position.set(sx * (w / 2 - 0.2), 0.22, sz * (d / 2 - 0.2));
+          tip.rotation.z = -sx * 0.38; tip.rotation.x = sz * 0.38; tip.castShadow = true; g.add(tip); v44count++;
+        }); });
+        return g;
+      }
+      /* 石垣の段差（下段ほど広く・石目テクスチャで段ごとに陰影を作る） */
+      function ishigakiSteps(w, d, steps, hEach, mat) {
+        var g = new THREE.Group();
+        for (var i = 0; i < steps; i++) {
+          var k = (steps - i) / steps;
+          bx(g, w * (0.72 + 0.28 * k), hEach, d * (0.72 + 0.28 * k), mat || stoneM, 0, hEach * (i + 0.5), 0);
+        }
+        return g;
+      }
+      function solidAt(x, z, px, pz, r) { return Math.hypot(x - px, z - pz) < r; }
+
+      var arch = THEME.archType;
+
+      /* ---------------- 京都：白漆喰＋瓦＋石垣の社務所／五重塔の白壁・反り軒／鳥居の部品増し ---------------- */
+      if (arch === "kyoto") {
+        /* 社務所（石垣台座→白漆喰壁→柱列→反り瓦屋根の関係を部品で表現） */
+        var shrineOffice = new THREE.Group();
+        var soBase = ishigakiSteps(11, 8, 3, 0.55); shrineOffice.add(soBase);
+        bx(shrineOffice, 9.2, 2.7, 6.4, whiteM, 0, 1.65 + 1.35, 0);
+        bx(shrineOffice, 9.6, 0.35, 6.8, woodM, 0, 1.65 + 0.18, 0);
+        bx(shrineOffice, 9.6, 0.3, 6.8, woodM, 0, 1.65 + 2.62, 0);
+        for (var pc = -3; pc <= 3; pc++) cyl(shrineOffice, 0.16, 0.18, 2.7, 8, woodM, pc * 1.45, 1.65 + 1.35, 3.35);
+        bx(shrineOffice, 10.6, 0.28, 1.6, woodM, 0, 1.5, 3.6);
+        var soRoof = soriRoof(11.6, 8.6, 1.7, tileM, tileDarkM); soRoof.position.y = 1.65 + 2.85; shrineOffice.add(soRoof);
+        var soRoof2 = soriRoof(8.2, 6.2, 1.25, tileM, tileDarkM); soRoof2.position.y = 1.65 + 2.85 + 1.55; shrineOffice.add(soRoof2);
+        shrineOffice.position.set(20, terrainY(20, 34), 34); shrineOffice.rotation.y = -0.35;
+        scene.add(shrineOffice);
+        /* 小祠堂（白壁＋瓦） */
+        var miniHall = new THREE.Group();
+        miniHall.add(ishigakiSteps(5.4, 4.6, 2, 0.5));
+        bx(miniHall, 4.2, 2.0, 3.4, whiteM, 0, 1.0 + 1.0, 0);
+        var mhRoof = soriRoof(6.0, 4.8, 1.2, tileM, tileDarkM); mhRoof.position.y = 3.05; miniHall.add(mhRoof);
+        bx(miniHall, 0.9, 1.3, 0.14, vermM, 0, 1.65, 1.74);
+        miniHall.position.set(-24, terrainY(-24, 40), 40); miniHall.rotation.y = 0.5;
+        scene.add(miniHall);
+        /* 五重塔：各層に白漆喰の壁帯＋反り軒スラブ＋石垣基壇を追加し、円錐屋根だけの平坦さを消す */
+        var pagBase = new THREE.Group();
+        pagBase.add(ishigakiSteps(9.5, 9.5, 3, 0.6));
+        pagBase.position.set(-38, terrainY(-38, -38), -38); scene.add(pagBase);
+        for (var lv2 = 0; lv2 < 5; lv2++) {
+          var s2 = 1 - lv2 * 0.13;
+          var lvlG = new THREE.Group();
+          bx(lvlG, 4.35 * s2, 0.85, 4.35 * s2, whiteM, 0, 0, 0);
+          var eave = soriRoof(6.1 * s2, 6.1 * s2, 0.55, tileDarkM, goldDim); eave.position.y = 0.42; lvlG.add(eave);
+          lvlG.position.set(-38, terrainY(-38, -38) + 1.8 + 0.85 + lv2 * 2.4, -38);
+          scene.add(lvlG);
+        }
+        /* 鳥居の部品増し：根巻き石（柱脚）・額束（がくづか）・笠木の反りキャップ・貫の楔 */
+        for (var ti = 0; ti < 5; ti++) {
+          var tsc = 1.0 + ti * 0.05, tx = 0, tz = -18 - ti * 9.5, ty = terrainY(tx, tz);
+          var tg = new THREE.Group();
+          [-1.9 * tsc, 1.9 * tsc].forEach(function (px) {
+            cyl(tg, 0.52 * tsc, 0.62 * tsc, 0.5, 10, stoneM, px, 0.25, 0);
+            bx(tg, 0.34 * tsc, 0.5 * tsc, 0.2, woodM, px * 0.92, 3.95 * tsc, 0.24);
+          });
+          bx(tg, 0.55 * tsc, 1.15 * tsc, 0.2, vermM, 0, 4.35 * tsc, 0);
+          bx(tg, 0.4 * tsc, 0.5 * tsc, 0.24, goldDim, 0, 4.35 * tsc, 0.02);
+          var cap = soriRoof(5.9 * tsc, 0.95, 0.42, tileDarkM, tileDarkM); cap.position.y = 5.42 * tsc; tg.add(cap);
+          tg.position.set(tx, ty, tz); scene.add(tg);
+        }
+        /* 玉垣（朱の柵）で参道の両側を区切る */
+        for (var fk = 0; fk < 9; fk++) {
+          [-4.6, 4.6].forEach(function (fx) {
+            var fz = -14 - fk * 5.2;
+            bx(scene, 0.18, 1.0, 0.18, vermM, fx, terrainY(fx, fz) + 0.5, fz);
+          });
+          [-4.6, 4.6].forEach(function (fx2) {
+            var fz2 = -16.6 - fk * 5.2;
+            bx(scene, 0.12, 0.16, 5.2, vermM, fx2, terrainY(fx2, fz2) + 0.92, fz2);
+          });
+        }
+      }
+
+      /* ---------------- パリ：マンサード屋根帯・フレッシュ尖塔・両翼ドーム・煙突/ドーマー ---------------- */
+      if (arch === "paris") {
+        var pBaseY = terrainY(0, -72);
+        var pg = new THREE.Group();
+        bx(pg, 43.5, 2.4, 11.4, slateM, 0, 10.6, 0);
+        var slopeF = bx(pg, 43.5, 3.4, 0.3, slateM, 0, 12.2, 4.6); slopeF.rotation.x = 0.5;
+        var slopeB = bx(pg, 43.5, 3.4, 0.3, slateM, 0, 12.2, -4.6); slopeB.rotation.x = -0.5;
+        bx(pg, 43.5, 1.5, 6.4, slateM, 0, 13.6, 0);
+        for (var dm = -4; dm <= 4; dm++) {
+          if (dm === 0) continue;
+          bx(pg, 1.3, 1.5, 0.5, whiteM, dm * 4.4, 11.9, 5.35);
+          var dRoof = new THREE.Mesh(new THREE.ConeGeometry(1.05, 0.8, 4), goldDim);
+          dRoof.rotation.y = Math.PI / 4; dRoof.position.set(dm * 4.4, 13.0, 5.35); dRoof.castShadow = true; pg.add(dRoof); v44count++;
+        }
+        [-19, -9.5, 9.5, 19].forEach(function (cx) { bx(pg, 0.9, 1.7, 0.9, whiteM, cx, 14.9, 0); });
+        /* 中央フレッシュ（尖塔）：ドーム頂から伸びるシルエットの芯 */
+        cyl(pg, 0.32, 0.5, 2.2, 8, goldM, 0, 16.6, 0);
+        var fleche = new THREE.Mesh(new THREE.ConeGeometry(0.95, 4.6, 8), goldM);
+        fleche.position.set(0, 19.9, 0); fleche.castShadow = true; pg.add(fleche); v44count++;
+        var fBall = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8), goldM); fBall.position.set(0, 22.4, 0); pg.add(fBall); v44count++;
+        /* 両翼パビリオンのドーム＋小尖塔 */
+        [-16.5, 16.5].forEach(function (wx) {
+          var wd = new THREE.Mesh(new THREE.SphereGeometry(3.1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), slateM);
+          wd.position.set(wx, 11.6, 0); wd.castShadow = true; pg.add(wd); v44count++;
+          var wt = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.4, 8), goldM);
+          wt.position.set(wx, 15.9, 0); wt.castShadow = true; pg.add(wt); v44count++;
+        });
+        /* 正面の破風（ペディメント）と時計円盤 */
+        var pedS = new THREE.Shape(); pedS.moveTo(-4.4, 0); pedS.lineTo(4.4, 0); pedS.lineTo(0, 2.2); pedS.closePath();
+        var pedG = new THREE.ExtrudeGeometry(pedS, { depth: 0.5, bevelEnabled: false });
+        var pedM = new THREE.Mesh(pedG, marbM); pedM.position.set(0, 9.9, 5.2); pedM.castShadow = true; pg.add(pedM); v44count++;
+        pg.position.set(0, pBaseY, -72); scene.add(pg);
+      }
+
+      /* ---------------- ローマ：コロッセオに横梁（エンタブラチュア）の段＋アリーナ楕円リング ---------------- */
+      if (arch === "rome") {
+        for (var rb = 0; rb < 40; rb++) {
+          var ra = (rb / 40) * Math.PI * 2;
+          if (Math.abs(Math.sin(ra)) < 0.25 && Math.cos(ra) < 0) continue;
+          var rx2 = Math.cos(ra) * 68, rz2 = Math.sin(ra) * 68, ry2 = terrainY(rx2, rz2);
+          [7.0, 13.9].forEach(function (hh) {
+            var beam = bx(scene, 11.0, 0.95, 3.5, marbM, rx2, ry2 + hh, rz2);
+            beam.lookAt(0, ry2 + hh, 0);
+          });
+          var key = bx(scene, 1.1, 1.5, 0.5, stoneM, Math.cos(ra) * 66.2, ry2 + 10.6, Math.sin(ra) * 66.2);
+          key.lookAt(0, ry2 + 10.6, 0);
+        }
+        var arena = new THREE.Mesh(new THREE.TorusGeometry(30, 0.45, 8, 64), stoneM);
+        arena.rotation.x = Math.PI / 2; arena.scale.set(1, 0.78, 1);
+        arena.position.set(0, terrainY(0, 0) + 0.35, 0); arena.receiveShadow = true; scene.add(arena); v44count++;
+        var arenaIn = new THREE.Mesh(new THREE.TorusGeometry(21, 0.35, 8, 56), marbM);
+        arenaIn.rotation.x = Math.PI / 2; arenaIn.scale.set(1, 0.78, 1);
+        arenaIn.position.set(0, terrainY(0, 0) + 0.3, 0); scene.add(arenaIn); v44count++;
+      }
+
+      /* ---------------- アメリカ：クラブハウスのポーチ列柱・破風・キューポラ・ドーマー＋観客スタンド ---------------- */
+      if (arch === "america") {
+        var cBaseY = terrainY(-42, -45);
+        var cg = new THREE.Group();
+        bx(cg, 27, 0.6, 4.6, marbM, 0, 0.3, 8.1);
+        for (var cc2 = -5; cc2 <= 5; cc2 += 2) cyl(cg, 0.3, 0.34, 7.2, 12, whiteM, cc2 * 2.5, 3.9, 9.6);
+        var porchRoof = bx(cg, 28, 0.35, 5.4, greenRoofM, 0, 7.75, 8.6); porchRoof.rotation.x = 0.16;
+        var pedS2 = new THREE.Shape(); pedS2.moveTo(-5.2, 0); pedS2.lineTo(5.2, 0); pedS2.lineTo(0, 2.4); pedS2.closePath();
+        var pedG2 = new THREE.ExtrudeGeometry(pedS2, { depth: 0.6, bevelEnabled: false });
+        var pedM2 = new THREE.Mesh(pedG2, whiteM); pedM2.position.set(0, 7.9, 9.9); pedM2.castShadow = true; cg.add(pedM2); v44count++;
+        cyl(cg, 1.15, 1.3, 1.6, 10, whiteM, 0, 12.6, 0);
+        var cup = new THREE.Mesh(new THREE.ConeGeometry(1.7, 1.6, 8), greenRoofM);
+        cup.position.set(0, 14.2, 0); cup.castShadow = true; cg.add(cup); v44count++;
+        var cupBall = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), goldM); cupBall.position.set(0, 15.3, 0); cg.add(cupBall); v44count++;
+        [-8, 0, 8].forEach(function (dx) {
+          bx(cg, 1.7, 1.6, 0.6, whiteM, dx, 9.3, 3.4);
+          var dr = new THREE.Mesh(new THREE.ConeGeometry(1.35, 0.9, 4), greenRoofM);
+          dr.rotation.y = Math.PI / 4; dr.position.set(dx, 10.5, 3.4); cg.add(dr); v44count++;
+        });
+        cg.position.set(-42, cBaseY, -45); scene.add(cg);
+        /* 観客グランドスタンド（段々＋屋根柱） */
+        var gs = new THREE.Group();
+        for (var stp = 0; stp < 4; stp++) bx(gs, 16, 0.85, 1.7, marbM, 0, 0.45 + stp * 0.85, -stp * 1.55);
+        bx(gs, 16, 2.2, 0.4, greenRoofM, 0, 4.4, -6.6);
+        [-7.4, -2.5, 2.5, 7.4].forEach(function (px2) { cyl(gs, 0.14, 0.14, 5.6, 8, whiteM, px2, 2.8, 0.6); });
+        var gsRoof = bx(gs, 17, 0.3, 8.6, greenRoofM, 0, 5.9, -2.6); gsRoof.rotation.x = 0.1;
+        gs.position.set(34, terrainY(34, -34), -34); gs.rotation.y = -0.6; scene.add(gs);
+      }
+
+      /* ---------------- 江戸：天守の段差石垣・黒壁の段＋反り屋根（黒瓦×金棟）・櫓・外周石垣（※白壁化しない） ---------------- */
+      if (arch === "edo") {
+        var eBaseY = terrainY(0, -70);
+        var eg = new THREE.Group();
+        var step1 = cyl(eg, 20.5, 23.5, 2.0, 4, stoneM, 0, 0.6, 0); step1.rotation.y = Math.PI / 4;
+        var step2 = cyl(eg, 18.0, 20.5, 2.0, 4, stoneM, 0, 2.2, 0); step2.rotation.y = Math.PI / 4;
+        for (var kl2 = 0; kl2 < 3; kl2++) {
+          var ks2 = 1 - kl2 * 0.2, fy = 9.2 + kl2 * 4.0;
+          bx(eg, 13.5 * ks2, 0.5, 13.5 * ks2, goldDim, 0, fy - 1.65, 0);
+          bx(eg, 13.5 * ks2, 0.42, 13.5 * ks2, tileDarkM, 0, fy + 1.72, 0);
+          [-1, 1].forEach(function (sx2) { [-1, 1].forEach(function (sz2) {
+            var crest = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), goldM);
+            crest.position.set(sx2 * 6.4 * ks2, fy + 0.2, sz2 * 6.4 * ks2); eg.add(crest); v44count++;
+          }); });
+          var eRoof = soriRoof(14.6 * ks2, 14.6 * ks2, 1.15, tileDarkM, goldM);
+          eRoof.position.y = fy + 1.85; eg.add(eRoof);
+        }
+        eg.position.set(0, eBaseY, -70); scene.add(eg);
+        /* 隅櫓（黒壁＋反り屋根＋石垣）×2 */
+        [[24, -58], [-24, -58]].forEach(function (yp) {
+          var yg = new THREE.Group();
+          yg.add(ishigakiSteps(7.5, 7.5, 2, 0.8));
+          bx(yg, 5.6, 3.0, 5.6, blackM, 0, 1.6 + 1.5, 0);
+          bx(yg, 6.0, 0.4, 6.0, goldDim, 0, 1.6 + 0.2, 0);
+          var yRoof = soriRoof(7.6, 7.6, 1.3, tileDarkM, goldM); yRoof.position.y = 1.6 + 3.1; yg.add(yRoof);
+          yg.position.set(yp[0], terrainY(yp[0], yp[1]), yp[1]); scene.add(yg);
+        });
+        /* 外周の石垣ウォール（地形に沿った分割配置） */
+        for (var wi2 = 0; wi2 < 14; wi2++) {
+          var wa = (wi2 / 14) * Math.PI * 2 + 0.22;
+          var wx = Math.cos(wa) * 30, wz = -70 + Math.sin(wa) * 26;
+          var wall = bx(scene, 11.5, 1.7, 1.1, stoneM, wx, terrainY(wx, wz) + 0.7, wz);
+          wall.lookAt(0, terrainY(wx, wz) + 0.7, -70);
+        }
+        /* 黄泉鳥居（0,-32 黒鳥居）の根巻き石と額束・黒金の笠 */
+        var yg2 = new THREE.Group();
+        [-2.38, 2.38].forEach(function (px3) { cyl(yg2, 0.6, 0.72, 0.55, 10, stoneM, px3, 0.27, 0); });
+        bx(yg2, 0.6, 1.3, 0.22, blackM, 0, 5.45, 0);
+        bx(yg2, 0.44, 0.55, 0.26, goldDim, 0, 5.45, 0.02);
+        yg2.position.set(0, terrainY(0, -32), -32); scene.add(yg2);
+      }
+
+      /* ---------------- 神域：神殿の基壇段・浮遊島（岩塊＋石板＋結晶）・第二列柱 ---------------- */
+      if (arch === "olympus") {
+        var oBaseY = terrainY(0, -80);
+        var og = new THREE.Group();
+        bx(og, 26, 0.7, 10, marbM, 0, 0.35, 2);
+        bx(og, 23, 0.7, 8.6, marbM, 0, 1.05, 2);
+        bx(og, 20, 0.7, 7.4, marbM, 0, 1.75, 2);
+        og.position.set(0, oBaseY, -80); scene.add(og);
+        for (var oc2 = -4; oc2 <= 4; oc2++) {
+          if (oc2 === 0) continue;
+          var cx3 = oc2 * 4.4, cz3 = -62, cy3 = terrainY(cx3, cz3);
+          cyl(scene, 0.5, 0.62, 7.4, 12, marbM, cx3, cy3 + 3.7, cz3);
+          bx(scene, 1.4, 0.45, 1.4, goldM, cx3, cy3 + 7.6, cz3);
+          bx(scene, 1.5, 0.4, 1.5, marbM, cx3, cy3 + 0.2, cz3);
+        }
+        var beam2 = bx(scene, 39, 0.8, 1.9, marbM, 0, terrainY(0, -62) + 8.15, -62);
+        function floatIsland(x, z, lift, sc) {
+          var fg = new THREE.Group();
+          var rock = new THREE.Mesh(new THREE.ConeGeometry(3.4 * sc, 5.2 * sc, 7), stoneM);
+          rock.rotation.x = Math.PI; rock.position.y = -2.2 * sc; rock.castShadow = true; fg.add(rock); v44count++;
+          cyl(fg, 3.9 * sc, 3.9 * sc, 0.7, 7, marbM, 0, 0.3, 0);
+          var cry = new THREE.Mesh(new THREE.OctahedronGeometry(0.85 * sc, 0),
+            new THREE.MeshStandardMaterial({ color: 0xffe98a, emissive: 0xcc9a22, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.4 }));
+          cry.position.y = 1.9 * sc; fg.add(cry); v44count++;
+          var beamC = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * sc, 1.3 * sc, lift, 10, 1, true),
+            new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+          beamC.position.y = -lift / 2 - 4.6 * sc; fg.add(beamC); v44count++;
+          fg.position.set(x, terrainY(x, z) + lift, z); scene.add(fg);
+        }
+        floatIsland(30, -54, 9, 1.0);
+        floatIsland(-33, -60, 11.5, 1.25);
+        floatIsland(17, -90, 13, 0.85);
+        floatIsland(-18, -92, 8, 0.7);
+      }
+
+      /* ---------------- 全エリア共通：参道の敷石・植生インスタンシング・遠景の山影・地平の霞 ---------------- */
+      var stonePathMat = new THREE.MeshStandardMaterial({ color: 0x7d7668, roughness: 0.95 });
+      var pathInst = new THREE.InstancedMesh(new THREE.BoxGeometry(1.7, 0.14, 1.15), stonePathMat, 30);
+      var dummy = new THREE.Object3D();
+      for (var pi2 = 0; pi2 < 30; pi2++) {
+        var pz3 = 20 - pi2 * 2.65, px4 = Math.sin(pi2 * 1.7) * 0.35;
+        dummy.position.set(px4, terrainY(px4, pz3) + 0.045, pz3); if (pz3 > -46) dummy.scale.set(0.001, 0.001, 0.001); else dummy.scale.set(1, 1, 1);
+        dummy.rotation.set(0, Math.sin(pi2 * 2.3) * 0.14, 0);
+        dummy.updateMatrix(); pathInst.setMatrixAt(pi2, dummy.matrix);
+      }
+      pathInst.receiveShadow = true; scene.add(pathInst);
+
+      var seed = 1234567;
+      function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+      var avoid = [[0, -72, 17], [-42, -45, 16], [0, -70, 20], [0, -80, 15], [-38, -38, 9], [20, -30, 9], [34, -34, 11], [-56, -42, 8], [20, 34, 10], [0, -48, 7]];
+      function spotOK(x, z) {
+        if (isInPond(x, z)) return false;
+        if (Math.abs(x) < 6 && z < 4 && z > -62) return false;
+        for (var i = 0; i < PONDS.length; i++) if (Math.hypot(x - PONDS[i].x, z - PONDS[i].z) < PONDS[i].r + 4) return false;
+        for (var j = 0; j < BUNKERS.length; j++) if (Math.hypot(x - BUNKERS[j].x, z - BUNKERS[j].z) < BUNKERS[j].r + 2.5) return false;
+        for (var k = 0; k < avoid.length; k++) if (solidAt(x, z, avoid[k][0], avoid[k][1], avoid[k][2])) return false;
+        if (arch === "rome" && Math.abs(Math.hypot(x, z) - 65) < 9) return false;
+        return true;
+      }
+      var NT = 110, treePos = [];
+      var guard = 0;
+      while (treePos.length < NT && guard++ < 3000) {
+        var ta = rnd() * Math.PI * 2, tr2 = 24 + rnd() * 66;
+        var tx2 = Math.cos(ta) * tr2, tz4 = Math.sin(ta) * tr2;
+        if (!spotOK(tx2, tz4)) continue;
+        treePos.push({ x: tx2, z: tz4, s: 0.75 + rnd() * 0.8, rot: rnd() * Math.PI * 2 });
+      }
+      var trunkInst = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.16, 0.3, 2.8, 7),
+        new THREE.MeshStandardMaterial({ color: 0x4c3826, roughness: 0.9 }), treePos.length);
+      var crownCols = (arch === "kyoto")
+        ? [0xe8a7bf, 0x3d7d3a, 0xd98fab]
+        : (arch === "rome" || arch === "paris")
+          ? [0x27592e, 0x2e6b34, 0x244f2a]
+          : [0x2e6b34, 0x3d7d3a, 0x27592e];
+      var crownInsts = crownCols.map(function (cc) {
+        return new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.55, 1),
+          new THREE.MeshStandardMaterial({ color: cc, roughness: 0.85 }), treePos.length);
+      });
+      var tallCrown = (arch === "rome" || arch === "paris");
+      treePos.forEach(function (tp, idx) {
+        var gy = terrainY(tp.x, tp.z);
+        dummy.position.set(tp.x, gy + 1.4 * tp.s, tp.z);
+        dummy.rotation.set(0, tp.rot, 0); dummy.scale.setScalar(tp.s); dummy.updateMatrix();
+        trunkInst.setMatrixAt(idx, dummy.matrix);
+        for (var ci3 = 0; ci3 < 3; ci3++) {
+          dummy.position.set(tp.x + Math.sin(idx * 2.1 + ci3 * 2.4) * 0.62 * tp.s,
+            gy + (3.1 + (ci3 % 2) * 0.85) * tp.s, tp.z + Math.cos(idx * 1.7 + ci3 * 2.4) * 0.62 * tp.s);
+          dummy.scale.set(tp.s * (1.05 - ci3 * 0.16), tp.s * (tallCrown ? 1.75 - ci3 * 0.2 : 1.0 - ci3 * 0.1), tp.s * (1.05 - ci3 * 0.16));
+          dummy.rotation.set(idx + ci3, idx * 1.3 + ci3 * 2.0, 0); dummy.updateMatrix();
+          crownInsts[ci3].setMatrixAt(idx, dummy.matrix);
+        }
+      });
+      trunkInst.castShadow = true; scene.add(trunkInst);
+      crownInsts.forEach(function (ci4) { ci4.castShadow = true; scene.add(ci4); });
+
+      /* 草むら・花・岩のインスタンシングで平坦な色面を崩す */
+      function scatterInst(geo, mat, n, sy0, sy1, rMax) {
+        var inst = new THREE.InstancedMesh(geo, mat, n), placed = 0, g2 = 0;
+        while (placed < n && g2++ < n * 30) {
+          var a3 = rnd() * Math.PI * 2, r3 = 6 + rnd() * (rMax || 84);
+          var x3 = Math.cos(a3) * r3, z4 = Math.sin(a3) * r3;
+          if (isInPond(x3, z4)) continue;
+          if (Math.abs(x3) < 9.5 && z4 > -54 && z4 < 36) continue; /* v4.4: 街路コリドー除外 */
+          if (Math.hypot(x3, z4 - 10) < 15.5) continue; /* v4.4: 広場除外 */
+          dummy.position.set(x3, terrainY(x3, z4) + sy0, z4);
+          dummy.rotation.set((rnd() - 0.5) * 0.5, rnd() * Math.PI, (rnd() - 0.5) * 0.5);
+          var sc3 = sy1 * (0.6 + rnd() * 0.9); dummy.scale.set(sc3, sc3, sc3); dummy.updateMatrix();
+          inst.setMatrixAt(placed++, dummy.matrix);
+        }
+        inst.count = placed; scene.add(inst); return inst;
+      }
+      scatterInst(new THREE.ConeGeometry(0.34, 0.85, 6), new THREE.MeshStandardMaterial({ color: 0x2c6e35, roughness: 0.9 }), 260, 0.3, 1.0);
+      scatterInst(new THREE.ConeGeometry(0.26, 0.6, 6), new THREE.MeshStandardMaterial({ color: 0x4c8a3f, roughness: 0.9 }), 200, 0.22, 0.9);
+      scatterInst(new THREE.SphereGeometry(0.13, 6, 5), new THREE.MeshBasicMaterial({ color: THEME.petalColor }), 130, 0.32, 1.0);
+      var rockInst = scatterInst(new THREE.DodecahedronGeometry(0.55, 0), new THREE.MeshStandardMaterial({ color: 0x777d84, roughness: 0.95 }), 46, 0.18, 1.3);
+      rockInst.castShadow = true;
+
+      /* 遠景の山影リング（平坦な地平線をシルエットで割る） */
+      var mtnCol = new THREE.Color(THEME.fogColor).lerp(new THREE.Color(0x8fa4c8), 0.45);
+      var mtnMat = new THREE.MeshBasicMaterial({ color: mtnCol });
+      for (var mi = 0; mi < 15; mi++) {
+        var ma = (mi / 15) * Math.PI * 2 + rnd() * 0.2;
+        var mr = 148 + rnd() * 42, mh = 17 + rnd() * 24;
+        var mtn = new THREE.Mesh(new THREE.ConeGeometry(20 + rnd() * 16, mh, 5), mtnMat);
+        mtn.position.set(Math.cos(ma) * mr, mh * 0.28, Math.sin(ma) * mr);
+        mtn.rotation.y = rnd() * Math.PI; scene.add(mtn); v44count++;
+      }
+      /* 地平の霞グラデーション（空と地面の境界を柔らかく繋ぐ円筒） */
+      (function hazeBand() {
+        var cv = document.createElement("canvas"); cv.width = 4; cv.height = 256;
+        var cx = cv.getContext("2d");
+        var hor = new THREE.Color(THEME.skyHor[0], THEME.skyHor[1], THEME.skyHor[2]);
+        var grd = cx.createLinearGradient(0, 0, 0, 256);
+        var rgb = Math.floor(hor.r * 255) + "," + Math.floor(hor.g * 255) + "," + Math.floor(hor.b * 255);
+        grd.addColorStop(0, "rgba(" + rgb + ",0)");
+        grd.addColorStop(0.72, "rgba(" + rgb + ",0.10)");
+        grd.addColorStop(1, "rgba(" + rgb + ",0.5)");
+        cx.fillStyle = grd; cx.fillRect(0, 0, 4, 256);
+        var tx = new THREE.CanvasTexture(cv);
+        var hz = new THREE.Mesh(new THREE.CylinderGeometry(335, 335, 110, 32, 1, true),
+          new THREE.MeshBasicMaterial({ map: tx, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false }));
+        hz.position.y = 18; scene.add(hz);
+      })();
+      /* 霧を僅かに抜いて遠景建築のシルエットが立つようにする（濃霧の色面化を回避） */
+      if (scene.fog && scene.fog.isFogExp2) scene.fog.density = 0.0034;
+      dummy.scale.set(1, 1, 1); dummy.rotation.set(0, 0, 0);
+      window.__V44 = { added: v44count, trees: treePos.length, arch: arch };
+    })();
+
+    /* =========================================================================
        第3部：インタラクティブ施設・運命の祠・神話試練祭壇・決戦の門
        ========================================================================= */
+
+    /* ================= v4.4 拠点の街並み（メインストリート＋建築キット＋小物＋散布物） ================= */
+    (function buildTownV44() {
+      var arch = (THEME.archType === 'olympus') ? 'olympus_sky' : THEME.archType;
+      var stoneMatT = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.92, metalness: 0.04 });
+      var marbMatT = new THREE.MeshStandardMaterial({ map: marbleTex, roughness: 0.4, metalness: 0.06 });
+      var goldMatT = new THREE.MeshStandardMaterial({ color: 0xffcf56, roughness: 0.26, metalness: 0.85 });
+      var added = 0;
+      function bx(parent, w, h, d, mat, x, y, z, ry, rz) {
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z); if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz;
+        m.castShadow = true; m.receiveShadow = true; parent.add(m); added++; return m;
+      }
+      function cyl(parent, rt, rb, h, seg, mat, x, y, z) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+        m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); added++; return m;
+      }
+      function stdMat(c, r, m2) { return new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.85 : r, metalness: m2 || 0.03 }); }
+      /* 反りのある切妻屋根（プロファイル押し出し） */
+      function gableRoof(w, d, h, mat, ridgeMat, sori) {
+        var g = new THREE.Group();
+        var sh = new THREE.Shape();
+        sh.moveTo(-w / 2, 0);
+        if (sori) { sh.quadraticCurveTo(-w * 0.2, h * 0.95, 0, h); sh.quadraticCurveTo(w * 0.2, h * 0.95, w / 2, 0); }
+        else { sh.lineTo(0, h); sh.lineTo(w / 2, 0); }
+        sh.lineTo(w / 2 - 0.3, -0.26); sh.lineTo(-w / 2 + 0.3, -0.26); sh.closePath();
+        var geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
+        geo.translate(0, 0, -d / 2);
+        var slab = new THREE.Mesh(geo, mat); slab.castShadow = true; slab.receiveShadow = true; g.add(slab); added++;
+        var ridge = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.26, d * 0.94), ridgeMat || mat);
+        ridge.position.y = h + 0.05; ridge.castShadow = true; g.add(ridge); added++;
+        return g;
+      }
+      /* ---------- メインストリート（地形追従リボン）＋広場 ---------- */
+      /* v4.4: 明るい石畳テクスチャを自前生成（従来 stoneTex は暗くアスファルトに見えた） */
+      var pavCanvas = document.createElement('canvas'); pavCanvas.width = pavCanvas.height = 256;
+      var pcx = pavCanvas.getContext('2d');
+      pcx.fillStyle = '#8f887a'; pcx.fillRect(0, 0, 256, 256);
+      var pavRnd = 1234; function pavRand() { pavRnd = (pavRnd * 16807) % 2147483647; return pavRnd / 2147483647; }
+      for (var py = 0; py < 4; py++) for (var px2 = 0; px2 < 4; px2++) {
+        var sh = 148 + Math.floor(pavRand() * 26) - 8;
+        pcx.fillStyle = 'rgb(' + sh + ',' + (sh - 6) + ',' + (sh - 22) + ')';
+        pcx.fillRect(px2 * 64 + 3, py * 64 + 3, 58, 58);
+        pcx.fillStyle = 'rgba(255,255,255,0.05)'; pcx.fillRect(px2 * 64 + 3, py * 64 + 3, 58, 10);
+      }
+      for (var sp = 0; sp < 2600; sp++) {
+        var sv = Math.floor(pavRand() * 60) - 30;
+        pcx.fillStyle = 'rgba(' + (140 + sv) + ',' + (134 + sv) + ',' + (118 + sv) + ',0.25)';
+        pcx.fillRect(Math.floor(pavRand() * 256), Math.floor(pavRand() * 256), 2, 2);
+      }
+      var streetTex = new THREE.CanvasTexture(pavCanvas);
+      streetTex.wrapS = streetTex.wrapT = THREE.RepeatWrapping; streetTex.repeat.set(1, 1);
+      var streetMat = new THREE.MeshStandardMaterial({ map: streetTex, roughness: 0.95, metalness: 0.02, side: THREE.DoubleSide });
+      var edgeMat = stdMat(0x3f4448, 0.95); edgeMat.side = THREE.DoubleSide;
+      function ribbon(pts, width, mat, yOff, uvScale) {
+        var pos = [], uv = [], idx = [], dist = 0;
+        for (var i = 0; i < pts.length; i++) {
+          var pt = pts[i];
+          var pn = pts[Math.min(pts.length - 1, i + 1)], pp = pts[Math.max(0, i - 1)];
+          var vx = pn[0] - pp[0], vz = pn[1] - pp[1]; var vl = Math.hypot(vx, vz) || 1; vx /= vl; vz /= vl;
+          var qx = vz, qz = -vx;
+          if (i > 0) dist += Math.hypot(pt[0] - pp[0], pt[1] - pp[1]);
+          var hw = width / 2;
+          var y1 = terrainY(pt[0] - qx * hw, pt[1] - qz * hw) + yOff, y2 = terrainY(pt[0] + qx * hw, pt[1] + qz * hw) + yOff;
+          pos.push(pt[0] - qx * hw, y1, pt[1] - qz * hw, pt[0] + qx * hw, y2, pt[1] + qz * hw);
+          uv.push(0, dist / (uvScale || 4), 1, dist / (uvScale || 4));
+          if (i < pts.length - 1) { var a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+        }
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        g.setIndex(idx); g.computeVertexNormals();
+        var m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m); added++;
+        return m;
+      }
+      function densify(pts, step) { var out = [pts[0]]; for (var di = 1; di < pts.length; di++) { var a = pts[di - 1], b = pts[di]; var dd = Math.hypot(b[0] - a[0], b[1] - a[1]); var nn = Math.max(1, Math.round(dd / step)); for (var dj = 1; dj <= nn; dj++) out.push([a[0] + (b[0] - a[0]) * dj / nn, a[1] + (b[1] - a[1]) * dj / nn]); } return out; }
+      var mainPts = densify([[0, 32], [1.2, 18], [-1.2, 2], [0.8, -14], [-0.8, -30], [0, -46]], 3.5);
+      ribbon(mainPts, 7.6, streetMat, 0.16, 4);
+      ribbon(mainPts, 8.7, edgeMat, 0.13, 4);
+      var crossPts = densify([[-32, 10.5], [-14, 11.2], [0, 10], [14, 9.4], [32, 10.2]], 3.5);
+      ribbon(crossPts, 6.0, streetMat, 0.15, 4);
+      var plaza = new THREE.Mesh(new THREE.CircleGeometry(13.5, 36), streetMat);
+      plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, terrainY(0, 10) + 0.06, 10); plaza.receiveShadow = true; scene.add(plaza); added++;
+      var plazaRing = new THREE.Mesh(new THREE.TorusGeometry(13.5, 0.3, 6, 40), edgeMat);
+      plazaRing.rotation.x = Math.PI / 2; plazaRing.position.set(0, terrainY(0, 10) + 0.1, 10); scene.add(plazaRing); added++;
+
+      /* ---------- 建築キット ---------- */
+      var PAL = {
+        kyoto:    { wall: 0x54402a, wall2: 0xe9e1cd, timber: 0x2e2015, roof: 0x39424f, roofR: 0x232833, accent: 0x2a3a6e, glass: 0xffca7a, sori: true, roofH: 1.35 },
+        edo:      { wall: 0x2a2c34, wall2: 0xdcd6c4, timber: 0x17181e, roof: 0x1d2027, roofR: 0xffcf56, accent: 0x8e1f1f, glass: 0xffb45e, sori: true, roofH: 1.45 },
+        paris:    { wall: 0xefe6d0, wall2: 0xe6dcc4, timber: 0x4a3421, roof: 0xb5651d, roofR: 0x8a4a16, accent: 0x51643c, glass: 0xbfd9e8, sori: false, roofH: 2.5 },
+        rome:     { wall: 0xc9ab7d, wall2: 0xbf9d6c, timber: 0x8a6a42, roof: 0xa8542f, roofR: 0x7e3c20, accent: 0x74552e, glass: 0xbfd9e8, sori: false, roofH: 0.95 },
+        america:  { wall: 0xe8e4da, wall2: 0x9db3c0, timber: 0x5a4632, roof: 0x5a5f66, roofR: 0x3c4046, accent: 0x8e3324, glass: 0xbfd9e8, sori: false, roofH: 1.7 },
+        olympus_sky: { wall: 0xf2ede0, wall2: 0xe9e2cf, timber: 0xc9a227, roof: 0xffcf56, roofR: 0xc9a227, accent: 0xfff2b0, glass: 0xd8ecff, sori: false, roofH: 1.1 }
+      };
+      var P = PAL[arch] || PAL.kyoto;
+      var wallM = stdMat(P.wall, 0.88), wall2M = stdMat(P.wall2, 0.85), timbM = stdMat(P.timber, 0.8),
+          roofM = stdMat(P.roof, 0.6, 0.15), roofRM = stdMat(P.roofR, 0.55, 0.2),
+          accM = stdMat(P.accent, 0.7), glassM = new THREE.MeshStandardMaterial({ color: P.glass, roughness: 0.18, metalness: 0.25, emissive: P.glass, emissiveIntensity: (arch === 'kyoto' || arch === 'edo') ? 0.35 : 0.06 });
+      function buildHouse(w, d, h, variant) {
+        var g = new THREE.Group();
+        bx(g, w + 0.35, 0.55, d + 0.35, stoneMatT, 0, 0.27, 0);                    // 石の基壇
+        bx(g, w, h, d, variant % 2 ? wall2M : wallM, 0, 0.55 + h / 2, 0);          // 壁
+        var fz = d / 2;
+        if (arch !== 'olympus_sky') {
+          // 木組み: 柱・梁（前面）
+          [-1, 1].forEach(function (sx) { bx(g, 0.2, h, 0.2, timbM, sx * (w / 2 - 0.1), 0.55 + h / 2, fz + 0.03); });
+          bx(g, w, 0.22, 0.14, timbM, 0, 0.55 + h - 0.12, fz + 0.03);
+          bx(g, w, 0.2, 0.14, timbM, 0, 0.55 + 0.35, fz + 0.03);
+          if (arch === 'paris') { // ハーフティンバーの斜材
+            bx(g, 0.16, h * 0.92, 0.12, timbM, -w * 0.22, 0.55 + h / 2, fz + 0.04, 0, 0.62);
+            bx(g, 0.16, h * 0.92, 0.12, timbM, w * 0.22, 0.55 + h / 2, fz + 0.04, 0, -0.62);
+          }
+          // 窓（枠＋格子＋ガラス）
+          var nWin = w > 6.4 ? 3 : 2;
+          for (var wi = 0; wi < nWin; wi++) {
+            var wx = (wi - (nWin - 1) / 2) * (w / (nWin + 0.6));
+            if (Math.abs(wx) < 0.85) continue; // 扉と重なる窓は省略
+            bx(g, 0.98, 1.15, 0.1, timbM, wx, 0.55 + h * 0.58, fz + 0.04);
+            bx(g, 0.78, 0.95, 0.12, glassM, wx, 0.55 + h * 0.58, fz + 0.05);
+            bx(g, 0.07, 0.95, 0.13, timbM, wx, 0.55 + h * 0.58, fz + 0.06);
+            bx(g, 0.78, 0.07, 0.13, timbM, wx, 0.55 + h * 0.58, fz + 0.06);
+          }
+          // 扉＋暖簾/看板
+          bx(g, 1.0, 1.95, 0.12, timbM, 0, 0.55 + 0.98, fz + 0.04);
+          if (arch === 'kyoto' || arch === 'edo') {
+            bx(g, 1.45, 0.6, 0.07, accM, 0, 0.55 + 2.28, fz + 0.16);
+            cyl(g, 0.045, 0.045, 1.6, 6, timbM, 0, 0.55 + 2.62, fz + 0.16).rotation.z = Math.PI / 2;
+          } else {
+            bx(g, 0.55, 1.15, 0.09, accM, w / 2 - 0.75, 0.55 + 1.7, fz + 0.06); // 看板
+          }
+          // 提灯（京都/江戸） or 街灯ポスト（他）
+          var lx = w / 2 + 0.55;
+          cyl(g, 0.06, 0.08, 2.5, 6, timbM, lx, 1.25, fz + 0.4);
+          var lamp = bx(g, 0.34, 0.44, 0.34, glassM, lx, 2.62, fz + 0.4);
+          lamp.material = glassM;
+        } else {
+          // 神域: 列柱＋ペディメントのパビリオン
+          for (var ci = -1; ci <= 1; ci++) cyl(g, 0.22, 0.26, h, 10, marbMatT, ci * (w / 2 - 0.5), 0.55 + h / 2, fz - 0.3);
+          bx(g, w + 0.6, 0.35, d + 0.4, goldMatT, 0, 0.55 + h + 0.15, 0);
+        }
+        var rf = gableRoof(w + 1.7, d + 1.5, P.roofH * (0.9 + (variant % 3) * 0.12), roofM, roofRM, P.sori);
+        rf.position.y = 0.55 + h; g.add(rf);
+        if (arch === 'paris' || arch === 'america' || arch === 'rome') {
+          bx(g, 0.55, 1.25, 0.55, arch === 'america' ? stdMat(0x7a4436, 0.9) : stoneMatT, w * 0.26, 0.55 + h + P.roofH * 0.45, 0); // 煙突
+        }
+        return g;
+      }
+      /* 建物列: 参道の両側（施設・池・バンカー・ランドマークを避ける） */
+      var exclusions = [[-38, -38, 12], [0, -72, 17], [0, -70, 17], [-42, -45, 13], [0, -80, 15], [20, 34, 10], [-24, 40, 8], [26, -18, 15], [-32, 22, 13], [0, -52, 8], [-11, 8, 5], [11, 8, 5], [0, 14, 5]];
+      function blocked(x, z) {
+        for (var i = 0; i < exclusions.length; i++) if (Math.hypot(x - exclusions[i][0], z - exclusions[i][1]) < exclusions[i][2]) return true;
+        for (var j = 0; j < PONDS.length; j++) if (Math.hypot(x - PONDS[j].x, z - PONDS[j].z) < PONDS[j].r + 5) return true;
+        for (var k = 0; k < BUNKERS.length; k++) if (Math.hypot(x - BUNKERS[k].x, z - BUNKERS[k].z) < BUNKERS[k].r + 4) return true;
+        return false;
+      }
+      var seedT = 4242;
+      var rndT = function () { seedT = (seedT * 1103515245 + 12345) & 0x7fffffff; return seedT / 0x7fffffff; };
+      var slots = [];
+      for (var zi = 0; zi < 9; zi++) slots.push(25 - zi * 8.3);
+      slots.forEach(function (z, si) {
+        [-1, 1].forEach(function (side) {
+          if (rndT() < 0.22) return; // 抜けを作る
+          var w = 5.6 + rndT() * 2.2, d = 4.6 + rndT() * 1.4, h = 3.1 + rndT() * 1.3;
+          var x = side * (6.6 + d / 2);
+          var zz = z + (rndT() - 0.5) * 1.6;
+          if (blocked(x, zz)) return;
+          var house = buildHouse(w, d, h, si * 2 + (side > 0 ? 1 : 0));
+          house.position.set(x, terrainY(x, zz), zz);
+          house.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+          scene.add(house);
+        });
+      });
+      /* 横丁の建物（広場の東西） */
+      [-24, 24].forEach(function (x, hi) {
+        if (blocked(x, 17)) return;
+        var house = buildHouse(6.4, 5.0, 3.5, hi + 5);
+        house.position.set(x, terrainY(x, 17), 17);
+        house.rotation.y = x > 0 ? Math.PI : 0;
+        scene.add(house);
+      });
+
+      /* ---------- エリア固有の小物・ビスタ ---------- */
+      if (arch === 'kyoto' || arch === 'edo') {
+        var sakuraM = [stdMat(0xf2b8c6, 0.95), stdMat(0xeaa0b4, 0.95), stdMat(0xf6ccd6, 0.95)];
+        var trunkMS = stdMat(0x3a2a1c, 0.95);
+        [[-6.9, 20], [6.9, 2], [-6.9, -16], [6.9, -34]].forEach(function (sp, i2) {
+          var tg = new THREE.Group();
+          var tr = cyl(tg, 0.16, 0.3, 2.6, 7, trunkMS, 0, 1.3, 0); tr.rotation.z = (i2 % 2 ? -0.1 : 0.12);
+          for (var k2 = 0; k2 < 3; k2++) {
+            var cl2 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5 - k2 * 0.25, 1), sakuraM[(i2 + k2) % 3]);
+            cl2.position.set((rndT() - 0.5) * 1.6, 2.9 + k2 * 0.7, (rndT() - 0.5) * 1.6);
+            cl2.castShadow = true; tg.add(cl2); added++;
+          }
+          tg.position.set(sp[0], terrainY(sp[0], sp[1]), sp[1]); scene.add(tg);
+        });
+        // 石灯籠（参道わき）
+        for (var li = 0; li < 6; li++) {
+          var lz = 22 - li * 13, lx2 = (li % 2 ? 5.4 : -5.4);
+          var lg = new THREE.Group();
+          bx(lg, 0.52, 0.22, 0.52, stoneMatT, 0, 0.11, 0);
+          cyl(lg, 0.1, 0.13, 0.85, 8, stoneMatT, 0, 0.62, 0);
+          bx(lg, 0.44, 0.36, 0.44, stoneMatT, 0, 1.2, 0);
+          bx(lg, 0.3, 0.2, 0.3, glassM, 0, 1.2, 0);
+          var cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.34, 4), stoneMatT);
+          cap.rotation.y = Math.PI / 4; cap.position.y = 1.52; cap.castShadow = true; lg.add(cap); added++;
+          var jewel = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), stoneMatT); jewel.position.y = 1.76; lg.add(jewel); added++;
+          lg.position.set(lx2, terrainY(lx2, lz), lz); scene.add(lg);
+        }
+        // 石垣＋生垣（東側の擁壁）
+        for (var wi2 = 0; wi2 < 3; wi2++) bx(scene, 1.1, 0.5, 34, stoneMatT, 13.8, terrainY(13.8, -2) + 0.25 + wi2 * 0.48, -2);
+        bx(scene, 1.3, 0.8, 34, stdMat(0x1d4d22, 0.95), 13.8, terrainY(13.8, -2) + 1.85, -2);
+      }
+      if (arch === 'paris') {
+        // 街の塔（ビスタ）: 石の円塔＋円錐屋根
+        var tw = new THREE.Group();
+        cyl(tw, 2.0, 2.4, 10.5, 14, stoneMatT, 0, 5.25, 0);
+        var trf = new THREE.Mesh(new THREE.ConeGeometry(3.0, 4.4, 14), stdMat(0x46586e, 0.55, 0.3));
+        trf.position.y = 12.6; trf.castShadow = true; tw.add(trf); added++;
+        bx(tw, 0.7, 1.1, 0.2, glassM, 0, 7.6, 2.25);
+        bx(tw, 0.7, 1.1, 0.2, glassM, 0, 4.6, 2.32);
+        tw.position.set(-13.5, terrainY(-13.5, -38), -38); scene.add(tw);
+      }
+      if (arch === 'rome') {
+        var cypM = stdMat(0x14401c, 0.95), trkM = stdMat(0x4a3421, 0.9);
+        [[-6.8, 14], [6.8, -6], [-6.8, -24], [6.8, -40]].forEach(function (cp) {
+          var cg2 = new THREE.Group();
+          cyl(cg2, 0.09, 0.14, 1.0, 6, trkM, 0, 0.5, 0);
+          var cone = new THREE.Mesh(new THREE.IcosahedronGeometry(0.85, 1), cypM);
+          cone.scale.set(1, 3.1, 1); cone.position.y = 3.4; cone.castShadow = true; cg2.add(cone); added++;
+          cg2.position.set(cp[0], terrainY(cp[0], cp[1]), cp[1]); scene.add(cg2);
+        });
+      }
+      if (arch === 'america') {
+        // 星条旗ポール（広場）
+        var fp = new THREE.Group();
+        cyl(fp, 0.07, 0.1, 9.4, 8, stdMat(0xd8d8d8, 0.4, 0.6), 0, 4.7, 0);
+        var flag = bx(fp, 2.3, 1.35, 0.06, stdMat(0xb22234, 0.8), 1.2, 8.5, 0);
+        bx(fp, 0.95, 0.72, 0.07, stdMat(0x3c3b6e, 0.8), 0.55, 8.82, 0);
+        fp.position.set(6.5, terrainY(6.5, 17), 17); scene.add(fp);
+        // 給水塔
+        var wt = new THREE.Group();
+        [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]].forEach(function (lg2) { bx(wt, 0.22, 6.4, 0.22, trkM2(), lg2[0], 3.2, lg2[1]); });
+        function trkM2() { return stdMat(0x5a4632, 0.9); }
+        cyl(wt, 2.5, 2.5, 3.4, 12, stdMat(0x8e6b42, 0.85), 0, 8.1, 0);
+        var wtc = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.7, 12), stdMat(0x5a5f66, 0.6));
+        wtc.position.y = 10.6; wtc.castShadow = true; wt.add(wtc); added++;
+        wt.position.set(-21, terrainY(-21, -28), -28); scene.add(wt);
+      }
+
+      /* ---------- 池・バンカーの縁処理 ---------- */
+      PONDS.forEach(function (pd) {
+        var mud = new THREE.Mesh(new THREE.RingGeometry(pd.r - 0.4, pd.r + 2.6, 36), stdMat(0x44502f, 1));
+        mud.rotation.x = -Math.PI / 2;
+        mud.position.set(pd.x, terrainY(pd.x, pd.z) + 1.50, pd.z);
+        mud.receiveShadow = true; scene.add(mud); added++;
+        for (var si2 = 0; si2 < 14; si2++) {
+          var an = (si2 / 14) * Math.PI * 2 + rndT() * 0.3;
+          var sx = pd.x + Math.cos(an) * (pd.r + 1.1), sz = pd.z + Math.sin(an) * (pd.r + 1.1);
+          var st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4 + rndT() * 0.4, 0), stoneMatT);
+          st.scale.y = 0.55; st.position.set(sx, terrainY(sx, sz) + 0.12, sz); st.rotation.y = rndT() * 3;
+          st.castShadow = true; scene.add(st); added++;
+        }
+      });
+      BUNKERS.forEach(function (bk) {
+        var lip = new THREE.Mesh(new THREE.TorusGeometry(bk.r, 0.34, 7, 26), stdMat(0x8a6f3c, 1));
+        lip.rotation.x = Math.PI / 2; lip.scale.set(1, 1, 0.55);
+        lip.position.set(bk.x, terrainY(bk.x, bk.z) + 0.10, bk.z);
+        scene.add(lip); added++;
+        var inner = new THREE.Mesh(new THREE.CircleGeometry(bk.r * 0.97, 26), stdMat(0xb99c62, 1));
+        inner.rotation.x = -Math.PI / 2;
+        inner.position.set(bk.x, terrainY(bk.x, bk.z) + 0.045, bk.z);
+        scene.add(inner); added++;
+      });
+
+      /* ---------- 散布物（茂み・岩・草むら）InstancedMesh ---------- */
+      var dummy = new THREE.Object3D();
+      var bushGeo = new THREE.IcosahedronGeometry(0.75, 1);
+      var bushMat = stdMat(0xffffff, 0.95); bushMat.flatShading = true;
+      var bushN = window.innerWidth < 820 ? 90 : 150;
+      var bushes = new THREE.InstancedMesh(bushGeo, bushMat, bushN);
+      var bushCols = [new THREE.Color(0x1d4d22), new THREE.Color(0x27632a), new THREE.Color(0x2e7030), new THREE.Color(0x1a421e)];
+      var placedB = 0, guardB = 0;
+      while (placedB < bushN && guardB++ < 900) {
+        var a2 = rndT() * Math.PI * 2, rr2 = 13 + rndT() * 76;
+        var bx3 = Math.cos(a2) * rr2, bz3 = Math.sin(a2) * rr2;
+        if (Math.abs(bx3) < 8.6 && bz3 > -52 && bz3 < 34) continue;
+        if (blocked(bx3, bz3)) continue;
+        dummy.position.set(bx3, terrainY(bx3, bz3) + 0.25, bz3);
+        dummy.scale.set(0.7 + rndT() * 1.1, 0.5 + rndT() * 0.6, 0.7 + rndT() * 1.1);
+        dummy.rotation.set(0, rndT() * 3, 0); dummy.updateMatrix();
+        bushes.setMatrixAt(placedB, dummy.matrix);
+        bushes.setColorAt(placedB, bushCols[Math.floor(rndT() * 4)]);
+        placedB++;
+      }
+      bushes.count = placedB; if (bushes.instanceColor) bushes.instanceColor.needsUpdate = true;
+      bushes.castShadow = true; scene.add(bushes); added++;
+      var rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
+      var rockMat = stdMat(0x777268, 0.95); rockMat.flatShading = true;
+      var rockN = window.innerWidth < 820 ? 36 : 60;
+      var rocks = new THREE.InstancedMesh(rockGeo, rockMat, rockN);
+      var placedR = 0; guardB = 0;
+      while (placedR < rockN && guardB++ < 700) {
+        var a3 = rndT() * Math.PI * 2, rr3 = 15 + rndT() * 74;
+        var rx3 = Math.cos(a3) * rr3, rz3 = Math.sin(a3) * rr3;
+        if (Math.abs(rx3) < 8.6 && rz3 > -52 && rz3 < 34) continue;
+        if (blocked(rx3, rz3)) continue;
+        dummy.position.set(rx3, terrainY(rx3, rz3) + 0.12, rz3);
+        dummy.scale.set(0.6 + rndT() * 1.3, 0.5 + rndT() * 0.8, 0.6 + rndT() * 1.3);
+        dummy.rotation.set(rndT(), rndT() * 3, rndT()); dummy.updateMatrix();
+        rocks.setMatrixAt(placedR, dummy.matrix);
+        placedR++;
+      }
+      rocks.count = placedR; rocks.castShadow = true; scene.add(rocks); added++;
+      window.__TOWN44 = { added: added, bushes: placedB, rocks: placedR };
+    })();
+
     var LANDMARKS = [];
     var subTrialTargetMesh = null;
     var duelGateGroup = null, duelPortalMesh = null;
@@ -1766,6 +2612,24 @@
       duelGateGroup.position.set(gx, gy, gz);
       scene.add(duelGateGroup);
       LANDMARKS.push({ x: gx, z: gz, r: 4.6, label: "⛳ 決戦の門（ゴルフ真剣勝負へ挑む！）", color: 0xff4d5a, isGate: true, action: { type: "duel" } });
+      /* v4.4: ビーコンの浮遊クリスタルに光柱と石の基壇リングを与え「祠ビーコン」として接地させる */
+      LANDMARKS.forEach(function (lm) {
+        if (!lm.crystal) return;
+        var gy2 = terrainY(lm.x, lm.z);
+        var pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.34, 1.65, 10, 1, true),
+          new THREE.MeshBasicMaterial({ color: lm.color, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false }));
+        pillar.position.set(lm.x, gy2 + 1.28, lm.z); scene.add(pillar);
+        var bring = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.13, 6, 26),
+          new THREE.MeshStandardMaterial({ color: 0x4c4e56, roughness: 0.9 }));
+        bring.rotation.x = Math.PI / 2; bring.position.set(lm.x, gy2 + 0.14, lm.z); scene.add(bring);
+        for (var bs2 = 0; bs2 < 4; bs2++) {
+          var an2 = bs2 * Math.PI / 2 + 0.4;
+          var bst = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0),
+            new THREE.MeshStandardMaterial({ color: 0x5a5c60, roughness: 0.95 }));
+          bst.position.set(lm.x + Math.cos(an2) * 2.0, gy2 + 0.1, lm.z + Math.sin(an2) * 2.0);
+          scene.add(bst);
+        }
+      });
     })();
 
     /* 人型3Dゴルファーメッシュ構築（主人公＆残影30名の個別帽子・眼鏡・衣装完全対応） */
@@ -1773,8 +2637,8 @@
     var GOLFER_RIGS = [];
     function golferShirtTexture(kind, baseHex) {
       try {
-        var cv = document.createElement("canvas"); cv.width = cv.height = 128;
-        var cx = cv.getContext("2d");
+        var cv = document.createElement("canvas"); cv.width = cv.height = 512;
+        var cx = cv.getContext("2d"); cx.scale(4, 4);
         cx.fillStyle = baseHex; cx.fillRect(0, 0, 128, 128);
         cx.strokeStyle = "rgba(255,255,255,0.35)"; cx.lineWidth = 5;
         if (kind === "argyle") {
@@ -1811,13 +2675,13 @@
       var toeMat = new THREE.MeshStandardMaterial({ color: (opts.acc === "twotone") ? (opts.cap !== undefined ? opts.cap : 0x8b1e24) : 0x0c0e14, roughness: 0.35 });
       var legPivots = [], kneePivots = [], anklePivots = [];
       [-0.22, 0.22].forEach(function (lx) {
-        var lp = new THREE.Group(); lp.position.set(lx, 0.90, 0);
-        var thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.125, 0.46, 10), pantsMat);
-        thigh.position.y = -0.23; thigh.castShadow = true; lp.add(thigh);
-        var knee = new THREE.Group(); knee.position.y = -0.46; lp.add(knee);
-        var shin = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.10, 0.42, 10), pantsMat);
-        shin.position.y = -0.21; shin.castShadow = true; knee.add(shin);
-        var ankle = new THREE.Group(); ankle.position.y = -0.44; knee.add(ankle);
+        var lp = new THREE.Group(); lp.position.set(lx, 1.15, 0);
+        var thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.12, 0.60, 10), pantsMat);
+        thigh.position.y = -0.30; thigh.castShadow = true; lp.add(thigh);
+        var knee = new THREE.Group(); knee.position.y = -0.60; lp.add(knee);
+        var shin = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.095, 0.55, 10), pantsMat);
+        shin.position.y = -0.275; shin.castShadow = true; knee.add(shin);
+        var ankle = new THREE.Group(); ankle.position.y = -0.55; knee.add(ankle);
         var shoe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.13, 0.34), shoeMat);
         shoe.position.set(0, -0.045, 0.05); ankle.add(shoe);
         var toe = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.10, 0.12), toeMat);
@@ -1826,7 +2690,7 @@
       });
 
       /* 骨盤→胸郭 */
-      var hips = new THREE.Group(); hips.position.y = 0.90; g.add(hips);
+      var hips = new THREE.Group(); hips.position.y = 1.15; g.add(hips);
       var pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.25, 0.24, 12), pantsMat);
       pelvis.position.y = 0.06; pelvis.castShadow = true; hips.add(pelvis);
       var torsoG = new THREE.Group(); torsoG.position.y = 0.10; hips.add(torsoG);
@@ -1846,7 +2710,7 @@
       }
 
       /* 頭部：顎ライン・鼻筋・耳を備えた立体造形＋帽子群 */
-      var headG = new THREE.Group(); headG.position.y = 0.98; torsoG.add(headG);
+      var headG = new THREE.Group(); headG.position.y = 0.81; torsoG.add(headG);
       var head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 14), skinMat);
       head.position.y = 0.14; head.castShadow = true; headG.add(head);
       var jaw = new THREE.Mesh(new THREE.SphereGeometry(0.20, 12, 10), skinMat);
@@ -1892,7 +2756,7 @@
 
       /* 腕：肩→肘→手首の多関節（クラブ側が主動・反対側はグリップへ添える） */
       function buildArm(sx) {
-        var sh = new THREE.Group(); sh.position.set(0.34 * sx, 0.80, 0); torsoG.add(sh);
+        var sh = new THREE.Group(); sh.position.set(0.34 * sx, 0.70, 0); torsoG.add(sh);
         var up = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.085, 0.36, 8), shirtMat);
         up.position.y = -0.18; up.castShadow = true; sh.add(up);
         var el = new THREE.Group(); el.position.y = -0.36; sh.add(el);
@@ -1921,6 +2785,7 @@
       var joints = { hips: hips, torso: torsoG, head: headG, shoulderC: armC.sh, elbowC: armC.el, wristC: armC.wr, shoulderF: armF.sh, elbowF: armF.el, knees: kneePivots, ankles: anklePivots };
       g.userData = { shirtMat: shirtMat, pantsMat: pantsMat, armPivot: armPivot, clubHead: clubHead, legs: legPivots, origShirt: opts.shirt, origPants: opts.pants, joints: joints, torsoMesh: torso };
       GOLFER_RIGS.push({ g: g, arm: armPivot, j: joints, torso: torso, seed: Math.random() * 10 });
+      if (window.HQW) HQW.enqueueGolfer(g, { shirtMat: shirtMat, pantsMat: pantsMat, skinMat: skinMat, hatMat: hatMat, shoeMat: shoeMat, toeMat: toeMat, hatCol: hatCol, hatType: hatType, joints: joints, legs: legPivots, knees: kneePivots, ankles: anklePivots, clubGroup: clubGroup, torso: torso, charId: opts.charId || null });
       return g;
     }
     /* 運動連鎖＆呼吸モーション（既存の armPivot 駆動から全身へ配分する） */
@@ -1975,7 +2840,7 @@
     /* 主人公モデル＆神装オーラリング */
     var pal = CHAR_PALETTE[CHAR_ID] || CHAR_PALETTE.Watu;
     var playerMesh = buildGolferMesh({
-      shirt: pal.shirt, pants: pal.pants, cap: pal.cap, skin: pal.skin, hat: "cap", scale: 1.05
+      shirt: pal.shirt, pants: pal.pants, cap: pal.cap, skin: pal.skin, hat: "cap", charId: CHAR_ID, scale: ({ Watu: 1.02, Matuya: 1.05, TIiger: 1.07, Junbo: 1.06, McIlro: 1.10, DeCham: 1.09 }[CHAR_ID] || 1.05)
     });
     var player = { x: 0, z: 22, rotY: Math.PI, vx: 0, vz: 0, hurtCd: 0, foreCd: 0, pushCd: 0 };
     playerMesh.position.set(player.x, terrainY(player.x, player.z), player.z);
@@ -2025,7 +2890,19 @@
     ];
 
     function spawnAreaMobs(mobDefs, purifiedIds) {
-      MOBS.forEach(function (m) { scene.remove(m.mesh); });
+      /* v4.5: 旧モブのシャツ用 CanvasTexture を解放し、残影リグ配列から除去済み分を剪定（sync のたびの単調増加を止める） */
+      MOBS.forEach(function (m) {
+        if (m.mesh) {
+          m.mesh.traverse(function (o) {
+            if (o.material) {
+              var mats = Array.isArray(o.material) ? o.material : [o.material];
+              mats.forEach(function (mm) { if (mm.map && mm.map.isCanvasTexture) { try { mm.map.dispose(); } catch (e) {} } });
+            }
+          });
+          scene.remove(m.mesh);
+        }
+      });
+      for (var ri = GOLFER_RIGS.length - 1; ri >= 0; ri--) { if (!GOLFER_RIGS[ri].g.parent) GOLFER_RIGS.splice(ri, 1); }
       MOBS = [];
       if (AREA_IDX === 5) return; // 天空の神域は神聖領域
 
@@ -2118,6 +2995,8 @@
 
     function refreshPurificationAtmosphere() {
       var ratio = (AREA_IDX === 5 || MOBS.length === 0) ? 1.0 : (countPurified() / MOBS.length);
+      /* v4.1（項目7）: ボス撃破済みエリアは残影の浄化率によらず光が満ちた状態にする */
+      if (STATE.bossDefeated) ratio = 1.0;
       skyUniforms.uPure.value = Math.min(1.0, 0.16 + ratio * 0.84);
       var cDark = new THREE.Color(THEME.fogColor);
       var cPure = new THREE.Color(THEME.fogPure);
@@ -3038,9 +3917,8 @@
     function animate() {
       requestAnimationFrame(animate);
       var dt = Math.min(0.05, clock.getDelta());
-      if (STATE.paused) {
-        renderer.render(scene, camera);
-        return;
+      if (STATE.paused || document.hidden) {
+        return; /* v4.5: 対戦中・非表示中は描画自体を止め、GPU/帯域を対戦側へ譲る（状態は保持され復帰は即時） */
       }
       if (hitstopTimer > 0) {
         hitstopTimer -= dt;
@@ -3528,6 +4406,11 @@
       }
     }
 
+    /* v4.5: 文書破棄時に WebGL を明示解放し、遷移ピークの GPU メモリを下げる */
+    window.addEventListener("pagehide", function () {
+      try { if (renderer) { renderer.forceContextLoss(); renderer.dispose(); } } catch (e) {}
+    });
+
     window.addEventListener("message", function (ev) {
       var d = ev.data;
       if (!d || typeof d !== "object") return;
@@ -3547,6 +4430,9 @@
         if (typeof d.tp === "number") STATE.tp = d.tp;
         if (d.gearStats) STATE.gearStats = d.gearStats;
         STATE.subTrialDone = !!d.subTrialDone;
+        /* v4.1（項目7）: エリアボス撃破済みなら「天岩戸の光が戻った」状態として大気を完全浄化側へ */
+        STATE.bossDefeated = !!d.bossDefeated;
+        refreshPurificationAtmosphere();
         if (subTrialTargetMesh) {
           subTrialTargetMesh.visible = !STATE.subTrialDone;
           if (subTrialTargetMesh.userData.beam) subTrialTargetMesh.userData.beam.visible = !STATE.subTrialDone;
@@ -3568,6 +4454,40 @@
     postToParent({ type: "goat:hello" });
     animate();
   </script>
+
+<script>
+/* v4.1（項目17）: Three.js が読み込めなかった場合の代替表示（本体が起動していない時だけ出す） */
+setTimeout(function(){
+  if(typeof THREE === "undefined" && !document.getElementById("v41LoadFallback")){
+    var d = document.createElement("div");
+    d.id = "v41LoadFallback";
+    d.style.cssText = "position:fixed;inset:0;z-index:99999;background:#0a0d1e;color:#ffe9a8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:'Noto Serif JP',serif;text-align:center;padding:24px;";
+    d.innerHTML = "<div style='font-size:20px;font-weight:700;'>⛳ 3Dエンジンの読み込みに失敗しました</div>" +
+      "<div style='font-size:13.5px;color:#aebadd;line-height:1.8;'>通信環境を確認してから、再読み込みしてください。<br>セーブデータはブラウザ内に安全に残っています。</div>";
+    var b = document.createElement("button");
+    b.textContent = "🔄 再読み込み";
+    b.style.cssText = "background:#c9a227;color:#14161f;border:none;font-size:15px;font-weight:700;padding:10px 26px;border-radius:8px;cursor:pointer;";
+    b.onclick = function(){ location.reload(); };
+    d.appendChild(b);
+    document.body.appendChild(d);
+  }
+}, 4000);
+
+/* v4.1（項目8）: 時間の流れの表情 ― 太陽の方位と空の明るさが数分かけて静かに移ろう（エリア固有の空の色は変えない） */
+(function(){
+  var t0 = Date.now();
+  var baseA = Math.atan2(-85, 58), R = Math.hypot(58, 85);
+  setInterval(function(){
+    if(typeof sunLight === "undefined" || typeof hemiLight === "undefined") return;
+    if(typeof STATE !== "undefined" && STATE.paused) return;
+    var t = (Date.now() - t0) / 1000;
+    var ang = Math.sin(t * Math.PI * 2 / 300) * 0.22;
+    sunLight.position.x = Math.cos(baseA + ang) * R;
+    sunLight.position.z = Math.sin(baseA + ang) * R;
+    hemiLight.intensity = 0.72 * (1 + 0.07 * Math.sin(t * Math.PI * 2 / 180));
+  }, 1000);
+})();
+</script>
 </body>
 
 </html>

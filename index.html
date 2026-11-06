@@ -3,7 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | Complete Edition</title>
+<title>BATTLE OF GOLF - GOAT | Complete Edition v4.5</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://archive.org">
+<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+<!-- v4.1: セーブ破損の自動復旧（本体スクリプトより前に実行し、壊れた保存をバックアップから戻す） -->
+<script>
+(function(){
+  var KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2"];
+  for(var i=0;i<KEYS.length;i++){
+    var k = KEYS[i];
+    try {
+      var v = localStorage.getItem(k);
+      if(v != null){ JSON.parse(v); continue; }
+    } catch(e){
+      try {
+        var bak = localStorage.getItem(k + "__bak41");
+        if(bak != null){ JSON.parse(bak); localStorage.setItem(k, bak); window.__goatSaveRecovered = true; }
+      } catch(e2){}
+    }
+  }
+})();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Noto+Sans+JP:wght@300;400;600;800;900&family=Noto+Serif+JP:wght@500;700;900&display=swap');
   :root {
@@ -437,7 +458,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v3.2.0 ｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア67種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.5 ｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
   </div>
 </div>
@@ -674,8 +695,8 @@ var GEARS = [
   { id:"dr_b", slot:"driver", name:"ブリジストーン B", tier:2, price:2500, dist:2, varCut:2, desc:"食いつきの良いフェースでスピンと操作性に優れる。" },
   { id:"dr_xxio", slot:"driver", name:"ゼクシオオ", tier:2, price:2800, dist:2, varCut:4, special:"xxio_lowpow", desc:"【例外特性枠】軽量で振り抜きやすく、低パワー時・非力キャラのブレを大幅に緩和（追加-20%）。" },
   { id:"dr_zx", slot:"driver", name:"シュリクソン ZX", tier:3, price:7000, dist:4, varCut:2, desc:"反発性能と直進性のバランスに優れた実戦派ヘッド。" },
-  { id:"dr_cw", slot:"driver", name:"CW クアンタム", tier:3, price:7500, dist:4.5, varCut:2, desc:"AI設計フェースで初速と許容性を両立。" },
-  { id:"dr_qi", slot:"driver", name:"テラーメイド Qi", tier:4, price:18000, dist:8, varCut:1, desc:"カーボンフェースによる圧倒的ボール初速特化モデル。" },
+  { id:"dr_cw", slot:"driver", name:"CW クアンタム", tier:3, price:7500, dist:4, varCut:2, desc:"AI設計フェースで初速と許容性を両立。" },
+  { id:"dr_qi", slot:"driver", name:"テラーメイド Qi", tier:4, price:18000, dist:7, varCut:1, desc:"カーボンフェースによる圧倒的ボール初速特化モデル。" },
   { id:"dr_ping", slot:"driver", name:"ピン G", tier:4, price:18000, dist:7, varCut:5, desc:"PGA使用率2位。極限の慣性モーメントで曲がらない許容性の王。" },
   { id:"dr_gt", slot:"driver", name:"タイトレスト GT", tier:5, price:45000, dist:10, varCut:3, desc:"PGA使用率40%で堂々1位。飛距離と操作性を最高次元で両立した王道ツアーモデル。" },
   { id:"sacred_driver_kusanagi", slot:"driver", name:"⚔ 神器 クサナギ（草薙剣）", tier:6, mythic:"three", price:0, dist:16, varCut:8, critRate:12, special:"kusanagi",
@@ -685,9 +706,9 @@ var GEARS = [
   { id:"ir_1", slot:"iron", name:"ベーシック アイアン", tier:1, price:800, dist:0, varCut:0, desc:"標準的なキャビティアイアン。" },
   { id:"ir_miz", slot:"iron", name:"ミズノプロ", tier:2, price:2500, dist:1, varCut:3, special:"rain_iron", desc:"極上の軟鉄鍛造打感。雨天時でもスピンと精度が落ちない。" },
   { id:"ir_zx", slot:"iron", name:"シュリクソン ZX鉄", tier:3, price:7000, dist:2, varCut:6, desc:"抜けの良いソールで安定した中距離ショットを実現。" },
-  { id:"ir_apex", slot:"iron", name:"CW エイペックス", tier:3, price:7200, dist:2.5, varCut:6, desc:"飛びとシャープな狙いを兼ね備えた万能アイアン。" },
-  { id:"ir_tm", slot:"iron", name:"テラーメイド P", tier:4, price:18000, dist:3.5, varCut:8, desc:"中空構造による高弾道と精密な距離感。" },
-  { id:"ir_ping", slot:"iron", name:"ピン ブループリント", tier:4, price:18500, dist:3, varCut:9, desc:"PGA使用率2位。タングステン配分による高い安定感。" },
+  { id:"ir_apex", slot:"iron", name:"CW エイペックス", tier:3, price:7200, dist:2, varCut:6, desc:"飛びとシャープな狙いを兼ね備えた万能アイアン。" },
+  { id:"ir_tm", slot:"iron", name:"テラーメイド P", tier:4, price:18000, dist:3, varCut:8, desc:"中空構造による高弾道と精密な距離感。" },
+  { id:"ir_ping", slot:"iron", name:"ピン ブループリント", tier:4, price:18500, dist:3, varCut:8, desc:"PGA使用率2位。タングステン配分による高い安定感。" },
   { id:"ir_t100", slot:"iron", name:"タイトレスト T", tier:5, price:45000, dist:4, varCut:10, desc:"PGA使用率33%で1位。トッププロが最も信頼する精密射撃アイアン。" },
   { id:"oly_iron_apollo", slot:"iron", name:"🏹 神器 アポロンの弓", tier:6, mythic:"olympus", price:0, dist:7, varCut:18, special:"apollo_sun",
     desc:"【オリンポスの神器】太陽神の弓。パリ宮廷の試練突破で授与。全アイアン最小のブレ(-18%)に加え、晴天ホールでは会心率+10%。" },
@@ -696,7 +717,7 @@ var GEARS = [
   { id:"wg_1", slot:"wedge", name:"ベーシック SW", tier:1, price:800, varCut:0, desc:"入門用の標準サンドウェッジ。" },
   { id:"wg_ping", slot:"wedge", name:"ピン s", tier:2, price:2500, varCut:4, desc:"濡れた芝でも安定したスピンがかかる実戦ウェッジ。" },
   { id:"wg_rtx", slot:"wedge", name:"クリーブランド RTX", tier:3, price:7000, varCut:8, special:"bunker_ease", desc:"伝統の溝設計でバンカーからの脱出ブレを軽減。" },
-  { id:"wg_mg", slot:"wedge", name:"テラーメイド MG", tier:3, price:7200, varCut:8.5, desc:"フェース面の精密ミルド加工で自在な寄せを実現。" },
+  { id:"wg_mg", slot:"wedge", name:"テラーメイド MG", tier:3, price:7200, varCut:8, desc:"フェース面の精密ミルド加工で自在な寄せを実現。" },
   { id:"wg_opus", slot:"wedge", name:"CW オーパス", tier:4, price:18000, varCut:12, desc:"強烈なバックスピンでグリーンにピタリと止めるプロ仕様。" },
   { id:"wg_vokey", slot:"wedge", name:"ボーケー SM", tier:5, price:45000, varCut:16, desc:"PGA使用率56%で圧倒的1位。ウェッジの代名詞たる至高の名器。" },
   { id:"oly_wedge_poseidon", slot:"wedge", name:"🔱 神器 ポセイドンの三叉槍", tier:6, mythic:"olympus", price:0, varCut:25, special:"poseidon_water",
@@ -706,7 +727,7 @@ var GEARS = [
   { id:"pt_1", slot:"putter", name:"ベーシック パター", tier:1, price:800, puttCut:5, desc:"標準的なピン型パター。" },
   { id:"pt_bet", slot:"putter", name:"ベティナルディ", tier:2, price:2500, puttCut:15, desc:"削り出しの繊細な打感を持つ工芸品パター。" },
   { id:"pt_pld", slot:"putter", name:"ピン PLD", tier:3, price:7000, puttCut:25, desc:"ツアープロ共同開発のバランス重視モデル。" },
-  { id:"pt_spider", slot:"putter", name:"テラーメイド スパイダー", tier:3, price:7500, puttCut:28, desc:"大型マレットの代表格。ロングパットの直進性が高い。" },
+  { id:"pt_spider", slot:"putter", name:"テラーメイド スパイダー", tier:3, price:7500, puttCut:25, desc:"大型マレットの代表格。ロングパットの直進性が高い。" },
   { id:"pt_ody", slot:"putter", name:"オデッセー", tier:4, price:18000, puttCut:35, desc:"絶妙なインサートで距離感が合いやすいツアー定番マレット。" },
   { id:"pt_scotty", slot:"putter", name:"スコッティカメラ ニューポート", tier:5, price:45000, puttCut:50, desc:"メジャー優勝数1位級。極限の精度を誇るブレードパターの王。" },
   { id:"sacred_putter_yata", slot:"putter", name:"🪞 神器 ヤタノミラー（八咫鏡）", tier:6, mythic:"three", price:0, puttCut:100, special:"yata_truth",
@@ -717,9 +738,9 @@ var GEARS = [
   { id:"sh_linq", slot:"shaft", name:"マミーヤ LIN-Q", tier:2, price:2500, powDropCut:12, dist:0.5, desc:"軽量で振りやすくヘッドスピードをわずかに補助。" },
   { id:"sh_modus", slot:"shaft", name:"日本シャフト モーダス", tier:3, price:7000, powDropCut:20, varCut:2, desc:"日本発の世界基準。しなやかな粘りで方向性が安定。" },
   { id:"sh_kbs", slot:"shaft", name:"KBS ツアー", tier:3, price:7000, powDropCut:20, special:"low_wind", desc:"風に強い鋭い中低弾道を生む剛性設計。" },
-  { id:"sh_ad", slot:"shaft", name:"グラファイトデザイン AD", tier:3, price:7500, powDropCut:22, desc:"クセのないしなり戻りでタイミングが取りやすい名作。" },
+  { id:"sh_ad", slot:"shaft", name:"グラファイトデザイン AD", tier:3, price:7500, powDropCut:20, desc:"クセのないしなり戻りでタイミングが取りやすい名作。" },
   { id:"sh_mitsu", slot:"shaft", name:"ミツビシカガク テンセイ", tier:4, price:18000, powDropCut:30, dist:1, desc:"ウッド使用率2位。強烈なしなり戻りで追い風時にさらに伸びる。" },
-  { id:"sh_dg", slot:"shaft", name:"トゥルーテンパー DG", tier:5, price:44000, powDropCut:38, varCut:4, desc:"アイアン使用率約75%の絶対定番。重厚な安定感でブレを抑え込む。" },
+  { id:"sh_dg", slot:"shaft", name:"トゥルーテンパー DG", tier:5, price:44000, powDropCut:40, varCut:4, desc:"アイアン使用率約75%の絶対定番。重厚な安定感でブレを抑え込む。" },
   { id:"sh_ventus", slot:"shaft", name:"フジクラ ヴェンタス", tier:5, price:45000, powDropCut:40, varCut:3, desc:"ウッド使用率38%で1位。先端剛性ベロコアがパワー低下時の飛距離落ちを極限まで防ぐ。" },
   { id:"oly_shaft_zeus", slot:"shaft", name:"⚡ 神器 ゼウスの雷霆", tier:6, mythic:"olympus", price:0, powDropCut:90, special:"zeus_storm",
     desc:"【オリンポスの神器】天空神の雷を宿すシャフト。パワー低下による飛距離低下を90%無効化し、強風・嵐のホールでは逆に飛距離が+6%増大する！" },
@@ -728,7 +749,7 @@ var GEARS = [
   { id:"gr_1", slot:"grip", name:"標準ラバー", tier:1, price:800, varDropCut:5, desc:"一般的な標準ラバーグリップ。" },
   { id:"gr_winn", slot:"grip", name:"ウィン ドライタック", tier:2, price:2500, varDropCut:15, mentalCut:3, desc:"衝撃吸収ポリマーが手首を守りメンタル消費もわずかに軽減。" },
   { id:"gr_ss", slot:"grip", name:"スーパーストローク", tier:3, price:7000, varDropCut:25, puttCut:10, desc:"手首の余計な動きを抑え、パター性能にも相乗効果をもたらす。" },
-  { id:"gr_iomic", slot:"grip", name:"イオミック", tier:3, price:7500, varDropCut:26, special:"iomic_rain", desc:"【例外特性枠】日本の樹脂技術が生んだ密着感。雨天・霧でもグリップ性能が一切劣化しない！" },
+  { id:"gr_iomic", slot:"grip", name:"イオミック", tier:3, price:7500, varDropCut:25, special:"iomic_rain", desc:"【例外特性枠】日本の樹脂技術が生んだ密着感。雨天・霧でもグリップ性能が一切劣化しない！" },
   { id:"gr_lamkin", slot:"grip", name:"ラムキング", tier:4, price:18000, varDropCut:35, desc:"100年の歴史を持つ高密着ツアーグリップ。" },
   { id:"gr_gp", slot:"grip", name:"ツアープライド MCC", tier:5, price:45000, varDropCut:50, desc:"トップ100選手の使用率88%。パワー低下時のブレ拡大を半減させる絶対王者。" },
   { id:"oly_grip_moirai", slot:"grip", name:"🕸 神器 モイラの運命の糸", tier:6, mythic:"olympus", price:0, varDropCut:90, special:"moirai_thread",
@@ -737,7 +758,7 @@ var GEARS = [
   /* ⑦ ボール (ball) ※ダース購入消耗品 */
   { id:"bl_qstar", slot:"ball", name:"シュリクソン Qスター", tier:1, price:800, critMult:1.0, critRate:0, varCut:2, desc:"柔らかく直進性の高い入門ツアー球（1ダース12球）。" },
   { id:"bl_zstar", slot:"ball", name:"シュリクソン Zスター", tier:2, price:2000, critMult:1.15, critRate:1, desc:"アプローチスピンとコスパに優れた準主力球。" },
-  { id:"bl_tourb", slot:"ball", name:"ブリジストーン ツアーB", tier:2, price:2200, critMult:1.18, critRate:1.5, desc:"高速スイングで風に負けない強弾道を生む（タイガーら愛用系譜）。" },
+  { id:"bl_tourb", slot:"ball", name:"ブリジストーン ツアーB", tier:2, price:2200, critMult:1.15, critRate:1, desc:"高速スイングで風に負けない強弾道を生む（タイガーら愛用系譜）。" },
   { id:"bl_tp5", slot:"ball", name:"テラーメイド TP5", tier:3, price:4500, critMult:1.30, critRate:2, desc:"5層構造で高弾道と低スピンを両立したツアーボール。" },
   { id:"bl_chrome", slot:"ball", name:"CW クロームツアー", tier:4, price:8000, critMult:1.45, critRate:3, desc:"PGA使用率2位。圧倒的ボールスピードで鋭い会心を生む。" },
   { id:"bl_prov1", slot:"ball", name:"タイトレスト プロV1", tier:5, price:12000, critMult:1.60, critRate:4, desc:"PGA使用率73%の絶対王者。会心の一撃の威力(×1.6)と精度が最高峰。" },
@@ -747,8 +768,8 @@ var GEARS = [
   /* ⑧ 服・ウェア (wear) */
   { id:"wr_1", slot:"wear", name:"デサントオ ベーシック", tier:1, price:800, weatherCut:5, desc:"動きやすく日本の気候に馴染む入門ウェア。" },
   { id:"wr_cw", slot:"wear", name:"CW アパレル", tier:2, price:2500, weatherCut:15, desc:"吸汗速乾に優れた標準ツアーポロ。" },
-  { id:"wr_lind", slot:"wear", name:"リンドバーグ レイン", tier:3, price:7000, weatherCut:35, desc:"北欧デザインの撥水ウェア。雨天ペナルティに強い。" },
-  { id:"wr_ua", slot:"wear", name:"アンダーパーマー コールド", tier:4, price:18000, weatherCut:52, desc:"強風や冷気の中でも体温とスイング軸を守る高機能ウェア。" },
+  { id:"wr_lind", slot:"wear", name:"リンドバーグ レイン", tier:3, price:7000, weatherCut:30, desc:"北欧デザインの撥水ウェア。雨天ペナルティに強い。" },
+  { id:"wr_ua", slot:"wear", name:"アンダーパーマー コールド", tier:4, price:18000, weatherCut:50, desc:"強風や冷気の中でも体温とスイング軸を守る高機能ウェア。" },
   { id:"wr_nike", slot:"wear", name:"ナイキー ツアーウェア", tier:5, price:45000, weatherCut:70, desc:"歴代世界王者たちが纏う最高峰の全天候ツアーウェア。" },
   { id:"oly_wear_athena", slot:"wear", name:"🛡 神器 アテナのアイギス", tier:6, mythic:"olympus", price:0, weatherCut:95, special:"athena_aegis",
     desc:"【オリンポスの神器】知恵と戦いの女神の聖衣。ローマ覇者の証。悪天候ペナルティを95%無効化し、さらにミス時のパワー減少を25%軽減する。" },
@@ -776,8 +797,8 @@ var GEARS = [
   /* ⑪ シューズ (shoes) */
   { id:"shs_1", slot:"shoes", name:"プーマァ イグナイト", tier:1, price:800, dist:0, lieCut:5, desc:"軽快なスパイクレス入門シューズ。" },
   { id:"shs_ecco", slot:"shoes", name:"エッコー バイオム", tier:2, price:2500, dist:1, lieCut:15, walkSpd:8, desc:"人間工学に基づく極上の履き心地。フィールド移動速度+8%。" },
-  { id:"shs_nike", slot:"shoes", name:"ナイキー ズームエア", tier:3, price:7000, dist:2.5, lieCut:25, desc:"地面反力をボール初速に変える反発ユニット搭載。" },
-  { id:"shs_adi", slot:"shoes", name:"アジダス ツアーサム", tier:4, price:18000, dist:3, lieCut:40, desc:"斜面や深いラフでも下半身が微動だにしない強力グリップ。" },
+  { id:"shs_nike", slot:"shoes", name:"ナイキー ズームエア", tier:3, price:7000, dist:2, lieCut:25, desc:"地面反力をボール初速に変える反発ユニット搭載。" },
+  { id:"shs_adi", slot:"shoes", name:"アジダス ツアーサム", tier:4, price:18000, dist:3, lieCut:35, desc:"斜面や深いラフでも下半身が微動だにしない強力グリップ。" },
   { id:"shs_fj", slot:"shoes", name:"フットジョーイ プレミアム", tier:5, price:45000, dist:5, lieCut:50, desc:"PGA使用率54%（1945年以来連続1位）。クラシックな品格と最強の地面伝達力を誇る王道靴。" },
   { id:"oly_shoes_hermes", slot:"shoes", name:"🪽 神器 ヘルメスの翼あるサンダル", tier:6, mythic:"olympus", price:0, dist:8, lieCut:75, walkSpd:25, special:"hermes_wing",
     desc:"【オリンポスの神器】19番ホール運試し特賞。飛距離補助+8%・悪ライ75%カット・フィールド移動+25%を弱点なしで叶える万能の神靴。" },
@@ -1225,14 +1246,24 @@ var SOUND = (function(){
     resolveStream(theme, function(url){
       if(streamTheme !== theme) return;
       if(!url){ streamActive = false; applyLevels(); return; }
-      try {
-        streamEl.src = url;
-        var p = streamEl.play();
-        if(p && p.catch) p.catch(function(){
-          var retry = function(){ document.removeEventListener("pointerdown", retry); if(streamEl && enabled && streamTheme === theme){ streamEl.play().catch(function(){}); } };
-          document.addEventListener("pointerdown", retry);
-        });
-      } catch(e){}
+      /* v4.1: 楽曲切替の継ぎ目を消すクロスフェード（再生中の旧曲をフェードアウトしてから差し替え、'playing' で applyLevels がフェードイン） */
+      var swap = function(){
+        if(streamTheme !== theme) return;
+        try {
+          streamEl.src = url;
+          var p = streamEl.play();
+          if(p && p.catch) p.catch(function(){
+            var retry = function(){ document.removeEventListener("pointerdown", retry); if(streamEl && enabled && streamTheme === theme){ streamEl.play().catch(function(){}); } };
+            document.addEventListener("pointerdown", retry);
+          });
+        } catch(e){}
+      };
+      if(streamEl.src && !streamEl.paused && streamEl.volume > 0.02){
+        streamFadeTo(0, 480);
+        setTimeout(swap, 500);
+      } else {
+        swap();
+      }
     });
   }
 
@@ -1371,6 +1402,16 @@ var SOUND = (function(){
 })();
 
 /* 二重ナレーションエンジン（男声：歴史の語り部 ／ 女声：運命の語り部 ＋ シネマスコープ連動） */
+/* v4.1: 音声リストはブラウザが非同期に用意するため、事前に温めてキャッシュし、初回から男女の声を正しく割り当てる */
+var __voiceCache = [];
+function __refreshVoices(){
+  try { if("speechSynthesis" in window) __voiceCache = window.speechSynthesis.getVoices() || []; } catch(e){}
+}
+if("speechSynthesis" in window){
+  __refreshVoices();
+  try { window.speechSynthesis.onvoiceschanged = __refreshVoices; } catch(e){}
+  window.addEventListener("pointerdown", __refreshVoices, { once:true });
+}
 var cinemaTimer = null;
 function narrate(text, role, enText, cinemaMs){
   var pName = (window.S && S.playerName) ? S.playerName : "器";
@@ -1405,8 +1446,8 @@ function narrate(text, role, enText, cinemaMs){
       ut.lang = "ja-JP";
       ut.pitch = isFem ? 1.18 : 0.82;
       ut.rate = isFem ? 0.96 : 0.94;
-      ut.volume = 0.92;
-      var voices = window.speechSynthesis.getVoices() || [];
+      ut.volume = 1.0;
+      var voices = (__voiceCache && __voiceCache.length) ? __voiceCache : (window.speechSynthesis.getVoices() || []);
       var jaVoices = voices.filter(function(v){ return /ja/i.test(v.lang); });
       if(jaVoices.length > 1){
         ut.voice = isFem ? jaVoices[0] : jaVoices[jaVoices.length - 1];
@@ -1675,6 +1716,27 @@ function computeFinalPattern(){
 }
 
 /* 現在エリアにおける次のゴルフ対戦ターゲットを解決 */
+/* v4.2 項目8: 周回天候 ― エリアの個性（基準天候）を保ちつつ、周回ごとに同系統の天候へ変化させる。
+   現在の周回数は周回メタ（goat_global_meta_v3 の clearedCount）に相乗りする（新規キー追加なし）。
+   1周目（clearedCount=0）は基準天候そのもの。物語固定の天候（アメリカのボス戦=sunny、江戸の決戦=fog/storm 等）は対象外。 */
+var AREA_WEATHER_CYCLES = [
+  ["sunny", "sunny", "rain", "strongWind"],      /* 京都: 晴れの地。雨や風の日もある */
+  ["strongWind", "rain", "strongWind", "sunny"], /* パリ: 風の宮廷。雨と、まれな静けさ */
+  ["sunny", "rain", "sunny", "strongWind"],      /* ローマ: 地中海の陽光。嵐の前触れも */
+  ["sunny", "strongWind", "sunny", "rain"],      /* アメリカ: 大陸の空（ライバル戦のみ変化） */
+  ["fog", "rain", "fog", "strongWind"],          /* 江戸: 霧の黄泉路。雨に煙る日も */
+  ["sunny", "sunny", "strongWind", "rain"]       /* 神域: 神々の空 */
+];
+function cycledAreaWeather(areaIdx, areaObj){
+  var base = (areaObj && areaObj.weather) || "sunny";
+  var table = AREA_WEATHER_CYCLES[areaIdx];
+  if(!table) return base;
+  var run = 0;
+  try { run = (typeof META !== "undefined" && META && META.clearedCount) ? META.clearedCount : 0; } catch(e){}
+  var w = table[run % table.length];
+  return w || base;
+}
+
 function getNextBattleTarget(areaIdx){
   if(!S) return null;
   var a = (typeof areaIdx === "number") ? areaIdx : S.area;
@@ -1713,7 +1775,7 @@ function getNextBattleTarget(areaIdx){
       powTier: Math.max(1.5, rc.powTier * 0.85 + a * 0.35),
       course: areaObj.rivalCourse,
       courseName: areaObj.rivalCourseName,
-      weather: areaObj.weather,
+      weather: cycledAreaWeather(a, areaObj),
       rematch: false
     };
   }
@@ -1725,7 +1787,7 @@ function getNextBattleTarget(areaIdx){
     return {
       kind: "boss", isBoss: true, holes: 3, id: jb.id, name: jName, title: jb.rank,
       powTier: 3.6, course: areaObj.bossCourse, courseName: areaObj.bossCourseName,
-      weather: areaObj.weather, rematch: !!as.bossDefeated
+      weather: cycledAreaWeather(a, areaObj), rematch: !!as.bossDefeated
     };
   }
   if(a === 1){
@@ -1739,7 +1801,7 @@ function getNextBattleTarget(areaIdx){
       powTier: (3.9 + pb.majors * 0.08) + (S.paris.isPrime ? 0.45 : 0),
       isPrime: S.paris.isPrime,
       course: areaObj.bossCourse, courseName: areaObj.bossCourseName,
-      weather: areaObj.weather, rematch: !!as.bossDefeated
+      weather: cycledAreaWeather(a, areaObj), rematch: !!as.bossDefeated
     };
   }
   if(a === 2){
@@ -1747,7 +1809,7 @@ function getNextBattleTarget(areaIdx){
     return {
       kind: "boss", isBoss: true, holes: 3, id: pl.id, name: pl.name + "（黒衣の騎士）", title: pl.rank,
       powTier: pl.powTier, course: areaObj.bossCourse, courseName: areaObj.bossCourseName,
-      weather: areaObj.weather, rematch: !!as.bossDefeated
+      weather: cycledAreaWeather(a, areaObj), rematch: !!as.bossDefeated
     };
   }
   if(a === 3){
@@ -1906,6 +1968,18 @@ function syncWorldFrame(){
   }
 }
 
+/* v4.2 項目10: 対戦フレームの先読み（ウォームアップ）。ワールド表示中、非表示の golfFrame に
+   golf.html を warmup モードで読み込んでおき、Three.js・スクリプト等のキャッシュを温める。
+   対戦の状態初期化には一切触れない（本番起動は従来どおり src 差し替え＝新規文書で行う）。 */
+var GOLF_WARM_URL = "golf.html?goat=1&warmup=1&v=4.2";
+function warmGolfFrame(){
+  var gf = document.getElementById("golfFrame");
+  if(!gf) return;
+  if(gf.classList.contains("active")) return;
+  if(gf.src && gf.src.indexOf("warmup=1") !== -1) return;
+  gf.src = GOLF_WARM_URL;
+}
+
 function enterWorld(reloadIframe){
   if(!S) return;
   document.getElementById("titleScr").style.display = "none";
@@ -1915,7 +1989,8 @@ function enterWorld(reloadIframe){
   var wf = document.getElementById("worldFrame");
   var gf = document.getElementById("golfFrame");
   gf.classList.remove("active");
-  gf.src = "about:blank";
+  /* v4.2 項目10: about:blank で捨てず、先読みして次回対戦の起動を速くする（ワールド読込と競合しないよう少し遅らせる） */
+  setTimeout(warmGolfFrame, 900);
   wf.classList.add("active");
   if(window.__curtainShow) __curtainShow();
 
@@ -1926,13 +2001,13 @@ function enterWorld(reloadIframe){
   var targetUrl = "world.html?area=" + S.area +
     "&char=" + encodeURIComponent(S.activeCharId) +
     "&name=" + encodeURIComponent(S.playerName) +
-    "&mode=" + encodeURIComponent(S.mode) + "&v=3";
+    "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
 
   if(reloadIframe || !wf.src || wf.src.indexOf("world.html") === -1){
     wf.src = targetUrl;
     if(window.__curtainWatch) __curtainWatch(wf);
   } else {
-    setTimeout(function(){ if(window.__curtainHide) __curtainHide(); }, 420);
+    setTimeout(function(){ if(window.__curtainHide) __curtainHide(); }, 150);
     syncWorldFrame();
     wf.contentWindow.postMessage({ type:"goat:resume" }, "*");
   }
@@ -2018,8 +2093,46 @@ function startGolfBattle(customTarget){
   launchGolfIframe(tgt);
 }
 
+/* v4.5: 対戦起動ウォッチドッグ。golf からの hello が来ない（CDN失敗等）場合、
+   1回だけ自動で読み直し、それでも駄目ならワールド（生存中）へ戻す。タイトルへは落とさない。 */
+function __v45Toast(msg){
+  var t = document.getElementById("v45Toast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "v45Toast";
+    t.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,12,26,.94);border:1px solid #c9a227;color:#ffe9a8;font-size:13.5px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);display:none;max-width:92vw;text-align:center;";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = "block";
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function(){ t.style.display = "none"; }, 4200);
+}
+function __armBattleWatchdog(url){
+  if(window.__bwTimer) clearTimeout(window.__bwTimer);
+  var tries = 0;
+  var check = function(){
+    window.__bwTimer = null;
+    var gf = document.getElementById("golfFrame");
+    if(!gf || !gf.classList.contains("active") || window.__golfBooted) return;
+    tries++;
+    if(tries === 1){
+      __v45Toast("対戦の読み込みに時間がかかっています。再試行します…");
+      gf.src = url;
+      window.__bwTimer = setTimeout(check, 15000);
+    } else {
+      __v45Toast("対戦を開始できませんでした。ワールドに戻ります");
+      enterWorld(false);
+    }
+  };
+  window.__bwTimer = setTimeout(check, 15000);
+}
+
 function launchGolfIframe(tgt, overrideCharId){
   if(!S || !tgt) return;
+  /* v4.5: 二重発火ガード（二度押し・ゲート到達とボタンの競合で重い golf 文書の読込がやり直されるのを防ぐ） */
+  if(window.__launchLock && Date.now() - window.__launchLock < 2500) return;
+  window.__launchLock = Date.now();
   var useCharId = overrideCharId || S.activeCharId;
   var ch = charById(useCharId);
   var gs = calcGearStats(S);
@@ -2077,7 +2190,9 @@ function launchGolfIframe(tgt, overrideCharId){
   gf.classList.add("active");
   if(window.__curtainShow) __curtainShow();
   gf.src = "golf.html?goat=1&course=" + encodeURIComponent(tgt.course) +
-           "&holes=" + tgt.holes + "&mode=" + encodeURIComponent(S.mode) + "&v=3.2&t=" + Date.now();
+           "&holes=" + tgt.holes + "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
+  window.__golfBooted = false;
+  __armBattleWatchdog(gf.src);
   if(window.__curtainWatch) __curtainWatch(gf);
   setTimeout(function(){
     try { gf.focus(); if(gf.contentWindow) gf.contentWindow.focus(); } catch(e){}
@@ -3271,7 +3386,10 @@ function resumeFromLoadedState(){
     wf.classList.remove("active");
     gf.classList.add("active");
     gf.src = "golf.html?goat=1&course=" + encodeURIComponent(S.activeBattle.course) +
-             "&holes=" + S.activeBattle.holes + "&mode=" + encodeURIComponent(S.mode) + "&resume=1&v=3.2&t=" + Date.now();
+             "&holes=" + S.activeBattle.holes + "&mode=" + encodeURIComponent(S.mode) + "&resume=1&v=4.2";
+    window.__golfBooted = false;
+    __armBattleWatchdog(gf.src);
+    if(window.__curtainWatch) __curtainWatch(gf);
     setTimeout(function(){
       try { gf.focus(); if(gf.contentWindow) gf.contentWindow.focus(); } catch(e){}
     }, 80);
@@ -3499,6 +3617,8 @@ window.addEventListener("message", function(ev){
 
   /* golf.html 起動挨拶 → 最新の対戦コンテキストを送信 */
   if(d.type === "goat:golfHello"){
+    window.__golfBooted = true;
+    if(window.__bwTimer){ clearTimeout(window.__bwTimer); window.__bwTimer = null; }
     var gf = document.getElementById("golfFrame");
     if(gf && gf.contentWindow && S.activeBattle){
       gf.contentWindow.postMessage({ type:"goat:battleContext", ctx:S.activeBattle }, "*");
@@ -3648,7 +3768,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var cur = document.getElementById("transCurtain"), hideTimer = null;
   window.__curtainShow = function(){ if(!cur) return; cur.classList.add("show"); if(hideTimer) clearTimeout(hideTimer); hideTimer = setTimeout(function(){ window.__curtainHide(); }, 2800); };
   window.__curtainHide = function(){ if(!cur) return; cur.classList.remove("show"); if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; } };
-  window.__curtainWatch = function(frame){ if(!frame){ setTimeout(function(){ window.__curtainHide(); }, 300); return; } var done = false; var off = function(){ if(done) return; done = true; setTimeout(function(){ window.__curtainHide(); }, 180); }; frame.addEventListener("load", off, { once:true }); setTimeout(off, 2400); };
+  window.__curtainWatch = function(frame){ if(!frame){ setTimeout(function(){ window.__curtainHide(); }, 300); return; } var done = false; var off = function(){ if(done) return; done = true; try{ frame.removeEventListener("load", off); }catch(e){} setTimeout(function(){ window.__curtainHide(); }, 60); }; frame.addEventListener("load", off, { once:true }); setTimeout(off, 2400); };
 })();
 /* キャラ肖像画エンブレム（象徴カラー・帽子シルエット・神話の後光を描くSVG生成） */
 function renderCharPortraitSVG(c){
@@ -3679,6 +3799,163 @@ function renderCharPortraitSVG(c){
     '<path d="M36 61 q4 2.6 8 0" stroke="#8a5a3b" stroke-width="1.4" fill="none" stroke-linecap="round"/>' +
     '</svg>';
 }
+</script>
+
+<script>
+/* =========================================================================
+   v4.1 追加モジュール：自己記録（項目9）／セーブの保険（項目16）／読込失敗時の案内（項目17）
+   既存のセーブキー・形式・postMessage 仕様は一切変更しない（記録は新規キーに分離）
+   ========================================================================= */
+(function(){
+  "use strict";
+  var SAVE_KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2"];
+  var REC_KEY = "goat_records_v41";
+
+  /* ---- 項目16: 保存のたびに控え（バックアップ）を自動で残す ---- */
+  try {
+    var origSet = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = function(k, v){
+      origSet(k, v);
+      if(SAVE_KEYS.indexOf(k) >= 0){
+        try { origSet(k + "__bak41", v); } catch(e){}
+      }
+    };
+  } catch(e){}
+
+  if(window.__goatSaveRecovered){
+    setTimeout(function(){ showV41Toast("💾 セーブデータの破損を検出し、控えから自動復旧しました"); }, 2500);
+  }
+
+  /* ---- 項目9: 自己記録 ---- */
+  function loadRec(){
+    try { var r = JSON.parse(localStorage.getItem(REC_KEY) || "null"); if(r && typeof r === "object") return r; } catch(e){}
+    return { wins:0, losses:0, playoffWins:0, bestRelWin:null, bestPowerLeft:null, oppWins:{} };
+  }
+  function saveRec(r){ try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch(e){} }
+  var REC = loadRec();
+
+  function recLine(){
+    var parts = ["対戦成績 " + REC.wins + "勝 " + REC.losses + "敗"];
+    if(REC.bestRelWin != null) parts.push("最良スコア " + (REC.bestRelWin > 0 ? "+" : "") + REC.bestRelWin + "（勝利時）");
+    if(REC.bestPowerLeft != null) parts.push("勝利時の残り炎パワー最大 " + REC.bestPowerLeft + "%");
+    if(REC.playoffWins > 0) parts.push("ニアピンプレーオフ勝利 " + REC.playoffWins + "回");
+    return parts.join(" ｜ ");
+  }
+  function renderRecPanel(){
+    var el = document.getElementById("v41Records");
+    if(el) el.textContent = "📜 自己記録 ― " + recLine();
+  }
+
+  window.addEventListener("message", function(ev){
+    var d = ev.data;
+    if(!d || d.type !== "goat:golfResult") return;
+    var notes = [];
+    if(d.outcome === "win"){
+      REC.wins++;
+      if(d.isPlayoff){ REC.playoffWins++; notes.push("ニアピンプレーオフ勝利！"); }
+      if(typeof d.relScore === "number" && !d.isPlayoff){
+        if(REC.bestRelWin == null || d.relScore < REC.bestRelWin){ REC.bestRelWin = d.relScore; notes.push("最良スコア更新：" + (d.relScore > 0 ? "+" : "") + d.relScore); }
+      }
+      if(typeof d.powerLeft === "number"){
+        var pl = Math.round(d.powerLeft);
+        if(REC.bestPowerLeft == null || pl > REC.bestPowerLeft){ REC.bestPowerLeft = pl; notes.push("残り炎パワー記録更新：" + pl + "%"); }
+      }
+      if(d.oppName){ REC.oppWins[d.oppName] = (REC.oppWins[d.oppName] || 0) + 1; }
+    } else {
+      REC.losses++;
+    }
+    saveRec(REC);
+    renderRecPanel();
+    if(notes.length) setTimeout(function(){ showV41Toast("🏆 自己記録更新！ " + notes.join(" ／ ")); }, 900);
+  });
+
+  /* ---- タイトル画面への表示（自己記録＋バックアップ書出/復元） ---- */
+  function showV41Toast(msg){
+    var t = document.getElementById("v41Toast");
+    if(!t){
+      t = document.createElement("div");
+      t.id = "v41Toast";
+      t.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,12,26,.94);border:1px solid #c9a227;color:#ffe9a8;font-size:13.5px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);display:none;max-width:92vw;text-align:center;";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(t._tm);
+    t._tm = setTimeout(function(){ t.style.display = "none"; }, 4200);
+  }
+  window.__v41Toast = showV41Toast;
+
+  function buildTitleExtras(){
+    var panel = document.querySelector("#titleScr .hero-panel");
+    if(!panel || document.getElementById("v41Records")) return;
+    var rec = document.createElement("div");
+    rec.id = "v41Records";
+    rec.style.cssText = "margin-top:14px;font-size:12.5px;color:#aebadd;text-align:center;";
+    panel.appendChild(rec);
+    renderRecPanel();
+
+    var row = document.createElement("div");
+    row.style.cssText = "margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;";
+    var bExp = document.createElement("button");
+    bExp.className = "bigbtn ghost"; bExp.textContent = "💾 セーブを書き出す";
+    bExp.style.cssText = "font-size:12.5px;padding:7px 14px;";
+    bExp.onclick = function(){
+      var data = {};
+      SAVE_KEYS.concat([REC_KEY]).forEach(function(k){
+        var v = localStorage.getItem(k);
+        if(v != null) data[k] = v;
+      });
+      var blob = new Blob([JSON.stringify({ app:"BATTLE OF GOLF - GOAT", version:"4.3", savedAt:new Date().toISOString(), data:data }, null, 2)], { type:"application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "goat_save_backup.json";
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      showV41Toast("💾 セーブデータをファイルに書き出しました");
+    };
+    var bImp = document.createElement("button");
+    bImp.className = "bigbtn ghost"; bImp.textContent = "📥 セーブを復元する";
+    bImp.style.cssText = "font-size:12.5px;padding:7px 14px;";
+    var fileIn = document.createElement("input");
+    fileIn.type = "file"; fileIn.accept = ".json,application/json"; fileIn.style.display = "none";
+    bImp.onclick = function(){ fileIn.click(); };
+    fileIn.onchange = function(){
+      var f = fileIn.files && fileIn.files[0];
+      if(!f) return;
+      var rd = new FileReader();
+      rd.onload = function(){
+        try {
+          var obj = JSON.parse(rd.result);
+          var data = obj && obj.data;
+          if(!data || typeof data !== "object") throw new Error("bad format");
+          var n = 0;
+          Object.keys(data).forEach(function(k){
+            if(SAVE_KEYS.indexOf(k) >= 0 || k === REC_KEY){ localStorage.setItem(k, String(data[k])); n++; }
+          });
+          if(!n) throw new Error("no save keys");
+          showV41Toast("📥 セーブを復元しました。再読み込みします…");
+          setTimeout(function(){ location.reload(); }, 1200);
+        } catch(e){
+          showV41Toast("⚠ 復元できませんでした（ファイル形式が違います）");
+        }
+      };
+      rd.readAsText(f);
+    };
+    row.appendChild(bExp); row.appendChild(bImp); row.appendChild(fileIn);
+    panel.appendChild(row);
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", buildTitleExtras);
+  else buildTitleExtras();
+
+  /* ---- 項目17: フレーム読込失敗時の案内と再読込 ---- */
+  ["worldFrame","golfFrame"].forEach(function(id){
+    var fr = document.getElementById(id);
+    if(!fr) return;
+    fr.addEventListener("error", function(){
+      showV41Toast("⚠ 画面の読み込みに失敗しました。通信を確認して、もう一度お試しください");
+    });
+  });
+})();
 </script>
 </body>
 </html>
