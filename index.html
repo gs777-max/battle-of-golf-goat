@@ -263,6 +263,11 @@
     background: linear-gradient(160deg, rgba(58,44,14,0.78), rgba(24,26,52,0.92));
     box-shadow: 0 0 22px rgba(255,208,90,0.32);
   }
+  /* 修正(r180版): .overlay の flex中央寄せ+overflow-y では、パネルが画面より
+     高い端末で先頭のカード(1人目)がスクロール到達不能な領域に押し出される。
+     #charScr のみ auto マージンによる安全な中央寄せに切り替える。 */
+  #charScr { align-items: flex-start; }
+  #charScr .hero-panel { margin-top: auto; margin-bottom: auto; }
   .char-swatch {
     width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 8px;
     display: flex; align-items: center; justify-content: center; font-size: 24px;
@@ -460,6 +465,7 @@
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
       Complete Master Edition v4.8【WebGPU実験版】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
+    <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
 </div>
 
@@ -3955,6 +3961,33 @@ function renderCharPortraitSVG(c){
       showV41Toast("⚠ 画面の読み込みに失敗しました。通信を確認して、もう一度お試しください");
     });
   });
+})();
+</script>
+<script>
+/* 描画方式チップ: ワールド/対戦フレームが実際に掴んだバックエンドを読み取り、
+   タイトル画面に表示する（比較用に追加。ゲーム動作には影響しない）。 */
+(function(){
+  var chip = document.getElementById('engineChip');
+  if(!chip) return;
+  var last = null;
+  function label(b){
+    if(!b) return null;
+    if(b === 'webgpu') return '描画: WebGPU';
+    if(b.indexOf('explicit') >= 0) return '描画: WebGL（フォールバック）';
+    if(b.indexOf('auto-fallback') >= 0) return '描画: WebGL（自動切替）';
+    if(b === 'webgl') return '描画: WebGL';
+    return '描画: ' + b;
+  }
+  setInterval(function(){
+    try {
+      ['worldFrame','golfFrame'].forEach(function(id){
+        var f = document.getElementById(id);
+        var e = f && f.contentWindow && f.contentWindow.__GOAT_ENGINE__;
+        if(e && e.backend){ var t = label(e.backend); if(t) last = t; }
+      });
+      if(last) chip.textContent = last;
+    } catch(err) {}
+  }, 1000);
 })();
 </script>
 </body>
