@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.5</title>
+<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.8</title>
 
 </head>
 <body>
@@ -2230,9 +2230,18 @@ class GolfGame{
   // ★★★ 弾道トレース：新ショット開始時にバッファをリセット ★★★
   _traceStart(){
     this._curTracePoints=[];
-    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._curTraceLine=null;}
-    this._curTraceMarkers.forEach(m=>this.scene.remove(m));
+    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._disposeObj(this._curTraceLine);this._curTraceLine=null;}
+    this._curTraceMarkers.forEach(m=>{this.scene.remove(m);this._disposeObj(m);});
     this._curTraceMarkers=[];
+  }
+
+  /* v4.6: オブジェクトの geometry/material を安全に解放する共通ヘルパー（二重解放は three.js 側で無害） */
+  _disposeObj(root){
+    if(!root) return;
+    root.traverse(function(o){
+      if(o.geometry){ try{ o.geometry.dispose(); }catch(e){} }
+      if(o.material){ const ms=Array.isArray(o.material)?o.material:[o.material]; for(const m of ms){ try{ m.dispose(); }catch(e){} } }
+    });
   }
 
   // ★ 毎フレーム：飛行中のボール座標を記録し、太めのチューブラインで弾道を描画
@@ -2295,10 +2304,11 @@ class GolfGame{
       while(this.traceLines.length>this.traceMaxHistory){
         const old=this.traceLines.shift();
         this.scene.remove(old);
+        this._disposeObj(old); /* v4.6: 溢れた旧弾道の GPU バッファも解放 */
       }
     }
     // 現在描画中のライブラインは削除（finalLineに置き換わったため）
-    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._curTraceLine=null;}
+    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._disposeObj(this._curTraceLine);this._curTraceLine=null;} /* v4.6: 解放追加 */
     this._curTracePoints=[];
     // 着地点マーカー（小さな旗ピン風マーク・リング状）
     if(landedPos){
@@ -2316,17 +2326,18 @@ class GolfGame{
       while(this._curTraceMarkers.length>this.traceMaxHistory){
         const oldMark=this._curTraceMarkers.shift();
         this.scene.remove(oldMark);
+        this._disposeObj(oldMark); /* v4.6: 解放追加 */
       }
     }
   }
 
   // ★ 全弾道トレースをクリア（新ホール開始時等）
   _traceClearAll(){
-    this.traceLines.forEach(l=>this.scene.remove(l));
+    this.traceLines.forEach(l=>{this.scene.remove(l);this._disposeObj(l);}); /* v4.6: 解放追加 */
     this.traceLines=[];
-    this._curTraceMarkers.forEach(m=>this.scene.remove(m));
+    this._curTraceMarkers.forEach(m=>{this.scene.remove(m);this._disposeObj(m);}); /* v4.6: 解放追加 */
     this._curTraceMarkers=[];
-    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._curTraceLine=null;}
+    if(this._curTraceLine){this.scene.remove(this._curTraceLine);this._disposeObj(this._curTraceLine);this._curTraceLine=null;} /* v4.6: 解放追加 */
     this._curTracePoints=[];
   }
 
@@ -2731,7 +2742,19 @@ class GolfGame{
     // カメラ操作ヒントを表示（5秒）
     const ch=document.getElementById("camHint");
     if(ch){ch.style.display="block";clearTimeout(this._camHintTimer);this._camHintTimer=setTimeout(()=>{ch.style.display="none";},5000);}
-    while(this.scene.children.length>0)this.scene.remove(this.scene.children[0]);
+    /* v4.6: 前ホールの全オブジェクトを外す際に geometry/material も明示解放する。
+       従来は remove のみで、地形・林(InstancedMesh)・空・HQ差替マテリアルがホールを跨いで
+       GPU/ヒープに残留していた（3ホール制の最終戦で最も蓄積する）。テクスチャは共有資産のため解放しない。 */
+    while(this.scene.children.length>0){
+      const _old=this.scene.children[0];
+      this.scene.remove(_old);
+      _old.traverse(function(o){
+        if(o.geometry){ try{ o.geometry.dispose(); }catch(e){} }
+        if(o.material){ const _ms=Array.isArray(o.material)?o.material:[o.material]; for(const _m of _ms){ try{ _m.dispose(); }catch(e){} } }
+        if(o.isInstancedMesh && o.dispose){ try{ o.dispose(); }catch(e){} }
+      });
+    }
+    if(this.fx){ this.fx.particles.length=0; this.fx.rings.length=0; } /* FX の対象メッシュは上記で解放済みのため参照だけを空にする */
     this.obZones=[];this.rainParticles=null;
     this.aimLineMesh=null;this.aimArrowMesh=null;this.aimDots=[];
     this.targetRingMesh=null;this.carryMarkerMesh=null;this.puttLineMesh=null;
@@ -4623,7 +4646,8 @@ const bCntGreen=Math.min(bunkerCount,5);
       /* v4.4: シャツもブロッカーとして残す (襟だけは二重になるため隠す) */
       J.torsoMesh.scale.x *= 0.94; J.torsoMesh.scale.z *= 0.94;
       if(J.torso) for(let i = 0; i < J.torso.children.length; i++){ const c = J.torso.children[i]; if(c.isMesh && c.geometry && c.geometry.type === 'TorusGeometry') c.visible = false; }
-      put('head', J.head, true); put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
+      var _hk48 = {Watu:'watu',Matuya:'matuya',TIiger:'tiiger',Junbo:'junbo',McIlro:'mcilro',DeCham:'decham'}[ch && ch.name] || 'watu';
+      put('head_' + _hk48, J.head, true) || put('head', J.head, true); put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       const hatKind = (ch && ch.name === 'DeCham') ? 'flat' : (ch && ch.name === 'Watu') ? 'straw' : 'cap';
       if(hatKind === 'cap'){ put('cap', J.head, true); put('cap_brim', J.head, true); put('cap_logo', J.head, true); }
       else if(hatKind === 'straw'){ put('straw', J.head, true); put('straw_top', J.head, true); }
@@ -6452,6 +6476,7 @@ const bCntGreen=Math.min(bunkerCount,5);
 
   // ===== 紙吹雪アニメーション =====
   _startConfetti(){
+    if(this._confettiRaf){cancelAnimationFrame(this._confettiRaf);this._confettiRaf=null;} /* v4.6: 二重起動で旧ループが孤児化し続けるのを防ぐ */
     const cv=document.getElementById("confettiCanvas");
     if(!cv)return;
     cv.width=window.innerWidth;cv.height=window.innerHeight;

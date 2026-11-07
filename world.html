@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.5</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.8</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap');
 
@@ -949,7 +949,7 @@
       }
       put('pelvis', J.hips); put('belt', J.hips); hideBody(J.hips);
       put('torso', ctx.torso); ctx.torso.material = INV; hideBody(J.torso);
-      put('head', J.head); put('earL', J.head); put('earR', J.head); put('nose', J.head);
+      (put('head_' + (_vk || 'watu'), J.head) || put('head', J.head)); put('earL', J.head); put('earR', J.head); put('nose', J.head);
       if(ctx.hatType === 'cap'){ put('cap', J.head); put('cap_brim', J.head); put('cap_logo', J.head); }
       else if(ctx.hatType === 'visor'){ put('cap_brim', J.head); }
       else if(ctx.hatType === 'straw'){ put('straw', J.head); put('straw_top', J.head); }
