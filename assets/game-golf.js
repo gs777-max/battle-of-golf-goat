@@ -34,14 +34,20 @@ window.HQG = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
     try{
       var loader = new THREE.GLTFLoader();
       if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+      /* 修正(r180版): 読込失敗を握り潰すと高品質パーツへ永久に差し替わらず
+         従来モデル(ロボット風)のままになるため、失敗時は最大3回まで再試行する */
+      var onFail = function(){
+        window.HQG._fails = (window.HQG._fails || 0) + 1;
+        if(window.HQG._fails <= 3){ window.HQG._started = 0; setTimeout(function(){ window.HQG.loadParts(); }, 2500); }
+      };
       loader.load('assets/models/hero_golf.glb', function(gltf){
         var parts = {};
         gltf.scene.children.forEach(function(root){ if(root && root.name) parts[root.name] = root; });
-        if(Object.keys(parts).length < 10) return;
+        if(Object.keys(parts).length < 10){ onFail(); return; }
         window.HQG.parts = parts;
         var pend = window.HQG.pending.splice(0);
         for(var i=0;i<pend.length;i++){ try{ pend[i](); }catch(e){} }
-      }, undefined, function(){});
+      }, undefined, onFail);
     }catch(e){}
   };
 })();
@@ -6299,7 +6305,9 @@ const bCntGreen=Math.min(bunkerCount,5);
         this._updateDistPanel();
         this._updateFlightBar();
         this._drawMiniMap();this._updateCompass();this._updateAimAngleDisplay();
-        if(!this.renderer.getContext().isContextLost()){
+        var _ctxLost = false;
+        try { var _gc = this.renderer.getContext(); _ctxLost = !!(_gc && typeof _gc.isContextLost === "function" && _gc.isContextLost()); } catch(e) {}
+        if(!_ctxLost){
           this.renderer.render(this.scene,this.camera);
         }
       }catch(e){console.warn("Loop error:",e);}
@@ -7714,4 +7722,4 @@ document.addEventListener('DOMContentLoaded', function () {
 ;
 
 /* v4.5: 文書破棄時に WebGL を明示解放し、遷移ピークの GPU メモリを下げる */
-window.addEventListener("pagehide", function(){ try{ var g = window.game; if(g && g.renderer){ g.renderer.forceContextLoss(); g.renderer.dispose(); } }catch(e){} });
+window.addEventListener("pagehide", function(){ try{ var g = window.game; if(g && g.renderer){ if(g.renderer.forceContextLoss) g.renderer.forceContextLoss(); try{ g.renderer.dispose(); }catch(e2){} } }catch(e){} });

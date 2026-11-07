@@ -33,14 +33,20 @@
       try{
         var loader = new THREE.GLTFLoader();
         if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+        /* 修正(r180版): 読込失敗を握り潰すと高品質パーツへ永久に差し替わらず
+           従来モデル(ロボット風)のままになるため、失敗時は最大3回まで再試行する */
+        var onFail = function(){
+          window.HQW._fails = (window.HQW._fails || 0) + 1;
+          if(window.HQW._fails <= 3){ window.HQW._started = 0; setTimeout(function(){ window.HQW.loadParts(); }, 2500); }
+        };
         loader.load('assets/models/hero_world.glb', function(gltf){
           var parts = {};
           gltf.scene.children.forEach(function(root){ if(root && root.name) parts[root.name] = root; });
-          if(Object.keys(parts).length < 10) return;
+          if(Object.keys(parts).length < 10){ onFail(); return; }
           window.HQW.parts = parts;
           var pend = window.HQW.pending.splice(0);
           for(var i=0;i<pend.length;i++){ try{ window.HQW.applyGolfer(pend[i][0], pend[i][1]); }catch(e){} }
-        }, undefined, function(){});
+        }, undefined, onFail);
       }catch(e){}
     };
     window.HQW.enqueueGolfer = function(g, ctx){
