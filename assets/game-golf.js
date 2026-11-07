@@ -3,13 +3,21 @@
 window.HQG = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
 (function(){
   var TL = new THREE.TextureLoader();
+  /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
+     30日キャッシュ下でも版上げで確実に差し替わるようにする */
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.9');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
-    var t = TL.load('assets/textures/' + name + '.png', function(){
+    var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQG._ready[name] = 1;
       var w = window.HQG._waiters[name] || []; window.HQG._waiters[name] = [];
       for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
+    }, undefined, function(){
+      /* v4.9: テクスチャ読込失敗を無言で握らず最大2回まで再試行する */
+      window.HQG._tf = window.HQG._tf || {};
+      var f = (window.HQG._tf[name] || 0) + 1; window.HQG._tf[name] = f;
+      if(f <= 2) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, 1500);
     });
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     if(rx) t.repeat.set(rx, ry || rx);
@@ -21,35 +29,86 @@ window.HQG = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
     if(window.HQG._ready[name]){ cb(); }
     else { (window.HQG._waiters[name] = window.HQG._waiters[name] || []).push(cb); }
   };
-  loadTex('skin_map', 1); loadTex('skin_nrm'); loadTex('skin_rgh');
-  loadTex('head_map', 1); loadTex('head_nrm'); loadTex('eye', 1);
-  /* v4.4: 6人分の顔/肌バリエーション (無い場合は汎用マップ+色調で代替) */
-  ['watu','matuya','tiiger','junbo','mcilro','decham'].forEach(function(k){ loadTex('head_' + k, 1); loadTex('skin_' + k, 1); });
+ loadTex('skin_map', 1); loadTex('skin_nrm'); loadTex('skin_rgh');
+loadTex('head_map', 1); loadTex('head_nrm'); loadTex('eye', 1);
+/* v4.9: キャラ別テクスチャ（v4.4で導入した6人分の顔/肌バリエーション）は、使うキャラの分だけを
+対戦確定時に遅延ロードする。使わない5人分（デコード約40MiB/文書）の常駐を消すための変更で、
+画質・見た目は不変。ロード完了までは従来どおり汎用マップで表示され、完了と同時に差し替わる。 */
+window.HQG._charTex = {};
+window.HQG.loadCharTex = function(k){
+if(__WARM ||!k || window.HQG._charTex[k]) return;
+window.HQG._charTex[k] = 1;
+loadTex('head_' + k, 1); loadTex('skin_' + k, 1);
+};
   loadTex('pants_map', 1); loadTex('pants_nrm'); loadTex('pants_rgh');
   loadTex('shirt_nrm'); loadTex('shirt_rgh');
   loadTex('ball_nrm');
   loadTex('grass_detail', 1); loadTex('grass_nrm'); loadTex('cloud', 1); loadTex('leaf_map', 1); loadTex('bark_map', 1); loadTex('sand_detail', 1); loadTex('sand_nrm'); loadTex('water_nrm');
-  window.HQG.loadParts = function(){
-    if(window.HQG._started) return; window.HQG._started = 1;
-    try{
-      var loader = new THREE.GLTFLoader();
-      if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-      /* 修正(r180版): 読込失敗を握り潰すと高品質パーツへ永久に差し替わらず
-         従来モデル(ロボット風)のままになるため、失敗時は最大3回まで再試行する */
-      var onFail = function(){
-        window.HQG._fails = (window.HQG._fails || 0) + 1;
-        if(window.HQG._fails <= 3){ window.HQG._started = 0; setTimeout(function(){ window.HQG.loadParts(); }, 2500); }
-      };
-      loader.load('assets/models/hero_golf.glb', function(gltf){
-        var parts = {};
-        gltf.scene.children.forEach(function(root){ if(root && root.name) parts[root.name] = root; });
-        if(Object.keys(parts).length < 10){ onFail(); return; }
-        window.HQG.parts = parts;
-        var pend = window.HQG.pending.splice(0);
-        for(var i=0;i<pend.length;i++){ try{ pend[i](); }catch(e){} }
-      }, undefined, onFail);
-    }catch(e){}
-  };
+ /* v4.9: GLB を「共通ベース＋キャラ別ヘッド」に分割し、使うキャラの分だけロードする。
+パーツ名・マテリアル名・中身は従来の hero_golf.glb と同一（分割再収納のみ、画質不変）。
+ベース読込の失敗時は最大3回まで再試行し（r180版修正の恒常化対策を継承）、
+それでも失敗すれば HQ 適用自体を行わない（従来モデル表示のフォールバック維持）。
+ヘッドの読込失敗時も再試行し、最終失敗時は汎用ヘッドで適用を進める。 */
+window.HQG._pBase = false; window.HQG._pHead = {};
+window.HQG._flushPending = function(){
+if(!window.HQG._pBase) return;
+var pend = window.HQG.pending.splice(0);
+for(var i=0;i<pend.length;i++){ try{ pend[i]();}catch(e){}}
+};
+window.HQG.readyFor = function(key){
+if(!window.HQG._pBase ||!window.HQG.parts) return false;
+if(!key || key === 'watu') return true;
+var s = window.HQG._pHead[key];
+return s === 'ok' || s === 'err';
+};
+function mergePartsG(gltf, minRoots){
+var roots = 0;
+gltf.scene.children.forEach(function(root){ if(root && root.name){ (window.HQG.parts = window.HQG.parts || {})[root.name] = root; roots++;}});
+return roots >= minRoots;
+}
+window.HQG._baseFail = function(){
+window.HQG._fails = (window.HQG._fails || 0) + 1;
+if(window.HQG._fails <= 3){ setTimeout(function(){ window.HQG._loadBase();}, 2500);}
+};
+window.HQG._loadBase = function(){
+try{
+var loader = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+loader.load('assets/models/hero_golf_base.glb' + AVQ, function(gltf){
+if(!mergePartsG(gltf, 10)){ window.HQG._baseFail(); return;}
+window.HQG._pBase = true;
+window.HQG._flushPending();
+}, undefined, function(){ window.HQG._baseFail();});
+}catch(e){ window.HQG._baseFail();}
+};
+window.HQG._loadHead = function(key){
+try{
+var hl = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) hl.setMeshoptDecoder(window.MeshoptDecoder);
+hl.load('assets/models/hero_golf_head_' + key + '.glb' + AVQ, function(gltf){
+mergePartsG(gltf, 1);
+window.HQG._pHead[key] = 'ok';
+window.HQG._flushPending();
+}, undefined, function(){
+var f = window.HQG._pHead[key + '_f'] = (window.HQG._pHead[key + '_f'] || 0) + 1;
+if(f <= 3){ setTimeout(function(){ window.HQG._loadHead(key);}, 2500);}
+else { window.HQG._pHead[key] = 'err'; window.HQG._flushPending();}
+});
+}catch(e){
+var f2 = window.HQG._pHead[key + '_f'] = (window.HQG._pHead[key + '_f'] || 0) + 1;
+if(f2 <= 3){ setTimeout(function(){ window.HQG._loadHead(key);}, 2500);}
+else { window.HQG._pHead[key] = 'err'; window.HQG._flushPending();}
+}
+};
+window.HQG.loadParts = function(charKey){
+try{
+if(!window.HQG._baseStarted){ window.HQG._baseStarted = 1; window.HQG._loadBase();}
+if(charKey && charKey!== 'watu' &&!window.HQG._pHead[charKey]){
+window.HQG._pHead[charKey] = 'loading';
+window.HQG._loadHead(charKey);
+}
+}catch(e){}
+};
 })();
 
 ;
@@ -4196,10 +4255,11 @@ const bCntGreen=Math.min(bunkerCount,5);
   /* v4.3: HQモデルパーツへの差し替え (未読込/失敗時は従来モデルのまま) */
   _hqApplyPlayer(){
     const H = window.HQG; if(!H) return;
-    if(!H.parts){
-      if(!this._hqQueued){ this._hqQueued = true; const self = this; H.pending.push(function(){ self._hqQueued = false; if(self.playerMesh && self.playerMesh.parent) self._hqApplyPlayer(); }); H.loadParts(); }
-      return;
-    }
+ var _ck49 = ({Watu:'watu',Matuya:'matuya',TIiger:'tiiger',Junbo:'junbo',McIlro:'mcilro',DeCham:'decham'})[this.character && this.character.name] || 'watu';
+if(!H.readyFor(_ck49)){
+if(!this._hqQueued){ this._hqQueued = true; const self = this; H.pending.push(function(){ self._hqQueued = false; if(self.playerMesh && self.playerMesh.parent) self._hqApplyPlayer();}); H.loadCharTex(_ck49); H.loadParts(_ck49);}
+return;
+}
     if(this._hqApplied) return; this._hqApplied = true;
     try{
       const J = this.playerJoints, ch = this.character, P = H.parts, T = H.tex;

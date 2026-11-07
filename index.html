@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版・新エンジン（v4.8ベース）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.9）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -268,6 +268,12 @@
      #charScr のみ auto マージンによる安全な中央寄せに切り替える。 */
   #charScr { align-items: flex-start; }
   #charScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+  /* 修正2(r180版): タイトル画面も同型の問題で、iPhone ではロゴと下部の
+     バージョン表記がスクロール到達不能な領域に押し出され見切れていた。
+     #titleScr にも安全な中央寄せを適用し、収まらない場合は先頭から
+     自然にスクロールできるようにする。 */
+  #titleScr { align-items: flex-start; }
+  #titleScr .hero-panel { margin-top: auto; margin-bottom: auto; }
   .char-swatch {
     width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 8px;
     display: flex; align-items: center; justify-content: center; font-size: 24px;
@@ -463,7 +469,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.8【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.9【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -1992,9 +1998,13 @@ function enterWorld(reloadIframe){
   document.getElementById("charScr").style.display = "none";
   document.getElementById("ingameNav").style.display = "flex";
 
-  var wf = document.getElementById("worldFrame");
-  var gf = document.getElementById("golfFrame");
-  gf.classList.remove("active");
+ var wf = document.getElementById("worldFrame");
+var gf = document.getElementById("golfFrame");
+gf.classList.remove("active");
+/* v4.9: ワールドを再構築する復帰（リロード指定、または world 文書が対戦中に破棄済み）の際、
+終了済みの対戦文書が残っていれば即座に破棄し、ワールド再構築とのメモリ重なりを消す
+（先読みの warmup 文書は対象外） */
+if((reloadIframe || wf.src.indexOf("world.html") === -1) && gf.src && gf.src.indexOf("golf.html")!== -1 && gf.src.indexOf("warmup=1") === -1){ try{ gf.src = "about:blank";}catch(e){}}
   /* v4.2 項目10: about:blank で捨てず、先読みして次回対戦の起動を速くする（ワールド読込と競合しないよう少し遅らせる） */
   setTimeout(warmGolfFrame, 900);
   wf.classList.add("active");
@@ -2004,12 +2014,18 @@ function enterWorld(reloadIframe){
   SOUND.setBGM(areaObj.id);
   updateTopbar();
 
-  var targetUrl = "world.html?area=" + S.area +
-    "&char=" + encodeURIComponent(S.activeCharId) +
-    "&name=" + encodeURIComponent(S.playerName) +
-    "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
+ var targetUrl = "world.html?area=" + S.area +
+"&char=" + encodeURIComponent(S.activeCharId) +
+"&name=" + encodeURIComponent(S.playerName) +
+"&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
+/* v4.9: 対戦開始前に world から報告されたフィールド位置があれば、復帰位置として渡す */
+if(S._v49Pos && S._v49Pos.area === S.area && isFinite(S._v49Pos.x) && isFinite(S._v49Pos.z)){
+targetUrl += "&px=" + encodeURIComponent(S._v49Pos.x) + "&pz=" + encodeURIComponent(S._v49Pos.z);
+}
 
   if(reloadIframe || !wf.src || wf.src.indexOf("world.html") === -1){
+    /* v4.9: world 再構築中フラグ（完了は goat:hello で解除）。対戦起動ウォッチドッグの猶予判定に使う */
+    window.__worldRebuilding = true;
     wf.src = targetUrl;
     if(window.__curtainWatch) __curtainWatch(wf);
   } else {
@@ -2116,11 +2132,18 @@ function __v45Toast(msg){
 }
 function __armBattleWatchdog(url){
   if(window.__bwTimer) clearTimeout(window.__bwTimer);
+  window.__bwDefer = 0;
   var tries = 0;
   var check = function(){
     window.__bwTimer = null;
     var gf = document.getElementById("golfFrame");
     if(!gf || !gf.classList.contains("active") || window.__golfBooted) return;
+    /* v4.9: world 再構築と対戦起動が重なっている間は、起動遅延を失敗と数えない
+       （再構築は対戦中 world 破棄の帰結であり、hello 到着で解除される。無限待ち防止に上限つき） */
+    if(window.__worldRebuilding && (window.__bwDefer = (window.__bwDefer || 0) + 1) <= 6){
+      window.__bwTimer = setTimeout(check, 5000);
+      return;
+    }
     tries++;
     if(tries === 1){
       __v45Toast("対戦の読み込みに時間がかかっています。再試行します…");
@@ -2195,9 +2218,10 @@ function launchGolfIframe(tgt, overrideCharId){
   wf.classList.remove("active");
   gf.classList.add("active");
   if(window.__curtainShow) __curtainShow();
-  gf.src = "golf.html?goat=1&course=" + encodeURIComponent(tgt.course) +
-           "&holes=" + tgt.holes + "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
-  window.__golfBooted = false;
+ gf.src = "golf.html?goat=1&course=" + encodeURIComponent(tgt.course) +
+"&holes=" + tgt.holes + "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
+window.__golfBooted = false;
+window.__v49BattleLaunch = true;
   __armBattleWatchdog(gf.src);
   if(window.__curtainWatch) __curtainWatch(gf);
   setTimeout(function(){
@@ -2217,9 +2241,9 @@ function launchGolfIframe(tgt, overrideCharId){
     sasayama_dark: "Amaterasu Sanctuary Hills",
     augusta_divine: "Olympus Sky Augusta"
   };
-  var enCourse = COURSE_EN_MAP[tgt.course] || "the Sacred Sanctuary";
-  SOUND.setBGM("boss");
-  narrate(
+ var enCourse = COURSE_EN_MAP[tgt.course] || "the Sacred Sanctuary";
+/* v4.9: boss BGM への切替は golf の起動確認（golfHello）後へ遅延し、遷移ピークの重なりを消す */
+narrate(
     tgt.courseName + "にて、" + (tgt.realBossName || tgt.name) + "との" + tgt.holes + "ホール真剣勝負が始まる。",
     "male",
     "At " + enCourse + ", the fateful " + tgt.holes + "-hole match against " + (tgt.id) + " begins.",
@@ -3391,16 +3415,17 @@ function resumeFromLoadedState(){
     var gf = document.getElementById("golfFrame");
     wf.classList.remove("active");
     gf.classList.add("active");
-    gf.src = "golf.html?goat=1&course=" + encodeURIComponent(S.activeBattle.course) +
-             "&holes=" + S.activeBattle.holes + "&mode=" + encodeURIComponent(S.mode) + "&resume=1&v=4.2";
-    window.__golfBooted = false;
+ gf.src = "golf.html?goat=1&course=" + encodeURIComponent(S.activeBattle.course) +
+"&holes=" + S.activeBattle.holes + "&mode=" + encodeURIComponent(S.mode) + "&resume=1&v=4.2";
+window.__golfBooted = false;
+window.__v49BattleLaunch = true;
     __armBattleWatchdog(gf.src);
     if(window.__curtainWatch) __curtainWatch(gf);
     setTimeout(function(){
       try { gf.focus(); if(gf.contentWindow) gf.contentWindow.focus(); } catch(e){}
-    }, 80);
-    SOUND.setBGM("boss");
-    narrate("中断されていた真剣勝負のラウンドを、その一打から再開する。", "male");
+}, 80);
+/* v4.9: boss BGM は golfHello 受信後に切替（launchGolfIframe と同方針） */
+narrate("中断されていた真剣勝負のラウンドを、その一打から再開する。", "male");
     return;
   }
   enterWorld(true);
@@ -3554,11 +3579,28 @@ window.addEventListener("message", function(ev){
   var d = ev.data;
   if(!d || typeof d !== "object" || !d.type) return;
 
-  if(d.type === "goat:hello"){
-    syncWorldFrame();
-    focusWorldFrame();
-    return;
-  }
+ if(d.type === "goat:hello"){
+window.__worldRebuilding = false;
+/* v4.9: 再構築された world は、対戦起動時に送られた goat:pause を受け取り損ねている場合がある
+   （リスナー登録前に届いたメッセージは消える）。起動処理中なら hello の到着時に pause を再送し、
+   world の描画を確実に止めて golf 起動へ CPU を譲る。フォーカス移動も起動中は行わない */
+if(window.__v49BattleLaunch){
+var wf49b = document.getElementById("worldFrame");
+if(wf49b && wf49b.contentWindow){ try{ wf49b.contentWindow.postMessage({ type:"goat:pause" }, "*"); }catch(e){} }
+syncWorldFrame();
+return;
+}
+syncWorldFrame();
+focusWorldFrame();
+return;
+}
+/* v4.9: world が対戦開始直前に報告するフィールド位置（破棄される world の復帰位置） */
+if(d.type === "goat:worldPos"){
+if(S && typeof d.x === "number" && typeof d.z === "number" && isFinite(d.x) && isFinite(d.z)){
+S._v49Pos = { area: S.area, x: d.x, z: d.z};
+}
+return;
+}
   if(!S) return;
 
   /* 3Dフィールドからのリアルタイム状態更新（残影浄化・ボール拾得・池ポチャ・ダメージ） */
@@ -3622,15 +3664,25 @@ window.addEventListener("message", function(ev){
   }
 
   /* golf.html 起動挨拶 → 最新の対戦コンテキストを送信 */
-  if(d.type === "goat:golfHello"){
-    window.__golfBooted = true;
-    if(window.__bwTimer){ clearTimeout(window.__bwTimer); window.__bwTimer = null; }
-    var gf = document.getElementById("golfFrame");
-    if(gf && gf.contentWindow && S.activeBattle){
-      gf.contentWindow.postMessage({ type:"goat:battleContext", ctx:S.activeBattle }, "*");
-    }
-    return;
-  }
+ if(d.type === "goat:golfHello"){
+window.__golfBooted = true;
+if(window.__bwTimer){ clearTimeout(window.__bwTimer); window.__bwTimer = null;}
+if(window.__v49BattleLaunch){
+window.__v49BattleLaunch = false;
+/* v4.9: boss BGM は golf の起動が確認できてから切り替える（遷移ピークの平準化） */
+SOUND.setBGM("boss");
+/* v4.9: 対戦中は world 文書を破棄し、その全常駐（テクスチャ/GLB/ヒープ）を解放する。
+復帰は enterWorld のリロード経路が担い（world.html を含まない src は再読込される既存仕様）、
+位置は goat:worldPos の報告で復元する */
+var wf49 = document.getElementById("worldFrame");
+if(wf49 && wf49.src && wf49.src.indexOf("world.html")!== -1){ try{ wf49.src = "about:blank";}catch(e){}}
+}
+var gf = document.getElementById("golfFrame");
+if(gf && gf.contentWindow && S.activeBattle){
+gf.contentWindow.postMessage({ type:"goat:battleContext", ctx:S.activeBattle }, "*");
+}
+return;
+}
 
   /* golf.html 1打確定ごとの進行同期（リセットやり直し防止＆1打単位レジューム） */
   if(d.type === "goat:shotProgress"){

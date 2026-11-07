@@ -3,12 +3,19 @@
   window.HQW = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
   (function(){
     var TL = new THREE.TextureLoader();
+    /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.9');
     function loadTex(name, srgb, rx, ry){
-      var t = TL.load('assets/textures/' + name + '.png', function(){
-        window.HQW._ready[name] = 1;
-        var w = window.HQW._waiters[name] || []; window.HQW._waiters[name] = [];
-        for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
-      });
+    var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
+      window.HQW._ready[name] = 1;
+      var w = window.HQW._waiters[name] || []; window.HQW._waiters[name] = [];
+      for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
+    }, undefined, function(){
+      /* v4.9: テクスチャ読込失敗を無言で握らず最大2回まで再試行する */
+      window.HQW._tf = window.HQW._tf || {};
+      var f = (window.HQW._tf[name] || 0) + 1; window.HQW._tf[name] = f;
+      if(f <= 2) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, 1500);
+    });
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       if(rx) t.repeat.set(rx, ry || rx);
       if(srgb) t.colorSpace = THREE.SRGBColorSpace;
@@ -19,40 +26,96 @@
       if(window.HQW._ready[name]){ cb(); }
       else { (window.HQW._waiters[name] = window.HQW._waiters[name] || []).push(cb); }
     };
-    loadTex('skin_map', 1); loadTex('skin_nrm'); loadTex('skin_rgh'); loadTex('eye', 1);
-    loadTex('head_map', 1); loadTex('head_nrm');
-    ['watu','matuya','tiiger','junbo','mcilro','decham'].forEach(function(k){ loadTex('head_' + k, 1); loadTex('skin_' + k, 1); });
+ loadTex('skin_map', 1); loadTex('skin_nrm'); loadTex('skin_rgh'); loadTex('eye', 1);
+loadTex('head_map', 1); loadTex('head_nrm');
+/* v4.9: キャラ別テクスチャは主人公（URL の char）の分だけロードする。残影（モブ）は汎用マップを
+使うため、使わない5人分（デコード約40MiB/文書）の常駐を消す。画質・見た目は不変。 */
+(function(){ var ck = (new URLSearchParams(location.search).get('char') || 'Watu').toLowerCase();
+if(['watu','matuya','tiiger','junbo','mcilro','decham'].indexOf(ck) === -1) ck = 'watu';
+loadTex('head_' + ck, 1); loadTex('skin_' + ck, 1);})();
     loadTex('pants_map', 1); loadTex('pants_nrm'); loadTex('pants_rgh');
     loadTex('shirt_nrm'); loadTex('shirt_rgh');
     loadTex('grass_map', 1, 26, 26); loadTex('grass_nrm', 0, 26, 26); loadTex('grass_rgh', 0, 26, 26);
     loadTex('leaf_map', 1); loadTex('leaf_nrm');
     loadTex('stone_map', 1); loadTex('stone_nrm'); loadTex('stone_rgh');
     loadTex('bark_map', 1); loadTex('bark_nrm');
-    window.HQW.loadParts = function(){
-      if(window.HQW._started) return; window.HQW._started = 1;
-      try{
-        var loader = new THREE.GLTFLoader();
-        if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-        /* 修正(r180版): 読込失敗を握り潰すと高品質パーツへ永久に差し替わらず
-           従来モデル(ロボット風)のままになるため、失敗時は最大3回まで再試行する */
-        var onFail = function(){
-          window.HQW._fails = (window.HQW._fails || 0) + 1;
-          if(window.HQW._fails <= 3){ window.HQW._started = 0; setTimeout(function(){ window.HQW.loadParts(); }, 2500); }
-        };
-        loader.load('assets/models/hero_world.glb', function(gltf){
-          var parts = {};
-          gltf.scene.children.forEach(function(root){ if(root && root.name) parts[root.name] = root; });
-          if(Object.keys(parts).length < 10){ onFail(); return; }
-          window.HQW.parts = parts;
-          var pend = window.HQW.pending.splice(0);
-          for(var i=0;i<pend.length;i++){ try{ window.HQW.applyGolfer(pend[i][0], pend[i][1]); }catch(e){} }
-        }, undefined, onFail);
-      }catch(e){}
-    };
-    window.HQW.enqueueGolfer = function(g, ctx){
-      if(window.HQW.parts){ try{ window.HQW.applyGolfer(g, ctx); }catch(e){} }
-      else { window.HQW.pending.push([g, ctx]); window.HQW.loadParts(); }
-    };
+ /* v4.9: GLB を「共通ベース＋キャラ別ヘッド」に分割。主人公のヘッドだけを追加ロードし、
+残影（charId なし）はベースのみで適用する。パーツ名・マテリアル名・中身は従来と同一（画質不変）。
+ベース/ヘッドとも読込失敗時は最大3回まで再試行し（r180版修正の恒常化対策を継承）、
+ベースの最終失敗時は HQ 適用自体を行わず、ヘッドの最終失敗時は汎用ヘッドで進める。 */
+window.HQW._pBase = false; window.HQW._pHead = {};
+window.HQW._keyOf = function(ctx){
+var k = ctx && ctx.charId? String(ctx.charId).toLowerCase(): null;
+return (k && ['watu','matuya','tiiger','junbo','mcilro','decham'].indexOf(k)!== -1)? k: null;
+};
+window.HQW._readyFor = function(key){
+if(!window.HQW._pBase ||!window.HQW.parts) return false;
+if(!key || key === 'watu') return true;
+var s = window.HQW._pHead[key];
+return s === 'ok' || s === 'err';
+};
+window.HQW._flushPending = function(){
+if(!window.HQW._pBase) return;
+var pend = window.HQW.pending; window.HQW.pending = [];
+for(var i=0;i<pend.length;i++){
+if(window.HQW._readyFor(window.HQW._keyOf(pend[i][1]))){ try{ window.HQW.applyGolfer(pend[i][0], pend[i][1]);}catch(e){}}
+else window.HQW.pending.push(pend[i]);
+}
+};
+function mergePartsW(gltf, minRoots){
+var roots = 0;
+gltf.scene.children.forEach(function(root){ if(root && root.name){ (window.HQW.parts = window.HQW.parts || {})[root.name] = root; roots++;}});
+return roots >= minRoots;
+}
+window.HQW._baseFail = function(){
+window.HQW._fails = (window.HQW._fails || 0) + 1;
+if(window.HQW._fails <= 3){ setTimeout(function(){ window.HQW._loadBase();}, 2500);}
+};
+window.HQW._loadBase = function(){
+try{
+var loader = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+loader.load('assets/models/hero_world_base.glb' + AVQ, function(gltf){
+if(!mergePartsW(gltf, 10)){ window.HQW._baseFail(); return;}
+window.HQW._pBase = true;
+window.HQW._flushPending();
+}, undefined, function(){ window.HQW._baseFail();});
+}catch(e){ window.HQW._baseFail();}
+};
+window.HQW._loadHead = function(key){
+try{
+var hl = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) hl.setMeshoptDecoder(window.MeshoptDecoder);
+hl.load('assets/models/hero_world_head_' + key + '.glb' + AVQ, function(gltf){
+mergePartsW(gltf, 1);
+window.HQW._pHead[key] = 'ok';
+window.HQW._flushPending();
+}, undefined, function(){
+var f = window.HQW._pHead[key + '_f'] = (window.HQW._pHead[key + '_f'] || 0) + 1;
+if(f <= 3){ setTimeout(function(){ window.HQW._loadHead(key);}, 2500);}
+else { window.HQW._pHead[key] = 'err'; window.HQW._flushPending();}
+});
+}catch(e){
+var f2 = window.HQW._pHead[key + '_f'] = (window.HQW._pHead[key + '_f'] || 0) + 1;
+if(f2 <= 3){ setTimeout(function(){ window.HQW._loadHead(key);}, 2500);}
+else { window.HQW._pHead[key] = 'err'; window.HQW._flushPending();}
+}
+};
+window.HQW.loadParts = function(charKey){
+try{
+if(!window.HQW._baseStarted){ window.HQW._baseStarted = 1; window.HQW._loadBase();}
+if(charKey && charKey!== 'watu' &&!window.HQW._pHead[charKey]){
+window.HQW._pHead[charKey] = 'loading';
+window.HQW._loadHead(charKey);
+}
+}catch(e){}
+};
+window.HQW.enqueueGolfer = function(g, ctx){
+var key = window.HQW._keyOf(ctx);
+if(window.HQW._readyFor(key)){ try{ window.HQW.applyGolfer(g, ctx);}catch(e){}}
+else { window.HQW.pending.push([g, ctx]); window.HQW.loadParts(key);}
+};
+    /* v4.9: enqueueGolfer は分割ロード版（上記）を唯一の定義とする。旧定義は削除した */
     var INV = new THREE.MeshBasicMaterial(); INV.visible = false;
     window.HQW.applyGolfer = function(g, ctx){
       var P = window.HQW.parts; if(!P) return;
@@ -121,9 +184,13 @@
     /* =========================================================================
        第1部：パラメータ・全6エリア環境プロファイル・残影30名ビジュアル定義
        ========================================================================= */
-    var QP = new URLSearchParams(location.search);
-    var AREA_IDX = Math.max(0, Math.min(5, parseInt(QP.get("area") || "0", 10) || 0));
-    var CHAR_ID = QP.get("char") || "Watu";
+ var QP = new URLSearchParams(location.search);
+var AREA_IDX = Math.max(0, Math.min(5, parseInt(QP.get("area") || "0", 10) || 0));
+var CHAR_ID = QP.get("char") || "Watu";
+/* v4.9: 対戦復帰時の位置復元（シェルが px/pz を渡した場合のみ。不正値・範囲外はスポーン固定） */
+var SPAWN_X = 0, SPAWN_Z = 22;
+(function(){ var px = parseFloat(QP.get("px")), pz = parseFloat(QP.get("pz"));
+if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ SPAWN_X = px; SPAWN_Z = pz;}})();
     var PNAME = QP.get("name") || CHAR_ID;
     var IS_GOAT = (QP.get("mode") === "goat");
 
@@ -962,6 +1029,8 @@
       }
       if (FLICKER_LIGHTS.length) {
         (function flick() {
+          /* v4.9: pause 中は明滅ライトの演算を止める */
+          if (typeof STATE !== "undefined" && STATE.paused) { requestAnimationFrame(flick); return; }
           var t = performance.now() / 1000;
           FLICKER_LIGHTS.forEach(function (f) { f.l.intensity = f.base * Math.PI * (0.82 + 0.28 * Math.sin(t * 11 + f.seed) * Math.sin(t * 5.3 + f.seed * 2)); });
           requestAnimationFrame(flick);
@@ -1944,6 +2013,8 @@
     (function golferRigLoop() {
       var t0 = performance.now();
       function fr(now) {
+        /* v4.9: pause 中はゴルファーリグの演算を止める */
+        if (typeof STATE !== "undefined" && STATE.paused) { requestAnimationFrame(fr); return; }
         var t = (now - t0) / 1000;
         for (var i = 0; i < GOLFER_RIGS.length; i++) {
           var R = GOLFER_RIGS[i];
@@ -1994,7 +2065,7 @@
     var playerMesh = buildGolferMesh({
       shirt: pal.shirt, pants: pal.pants, cap: pal.cap, skin: pal.skin, hat: "cap", charId: CHAR_ID, scale: ({ Watu: 1.02, Matuya: 1.05, TIiger: 1.07, Junbo: 1.06, McIlro: 1.10, DeCham: 1.09 }[CHAR_ID] || 1.05)
     });
-    var player = { x: 0, z: 22, rotY: Math.PI, vx: 0, vz: 0, hurtCd: 0, foreCd: 0, pushCd: 0 };
+ var player = { x: SPAWN_X, z: SPAWN_Z, rotY: Math.PI, vx: 0, vz: 0, hurtCd: 0, foreCd: 0, pushCd: 0};
     playerMesh.position.set(player.x, terrainY(player.x, player.z), player.z);
     playerMesh.rotation.y = player.rotY;
     scene.add(playerMesh);
@@ -2043,17 +2114,24 @@
 
     function spawnAreaMobs(mobDefs, purifiedIds) {
       /* v4.5: 旧モブのシャツ用 CanvasTexture を解放し、残影リグ配列から除去済み分を剪定（sync のたびの単調増加を止める） */
-      MOBS.forEach(function (m) {
-        if (m.mesh) {
-          m.mesh.traverse(function (o) {
-            if (o.material) {
-              var mats = Array.isArray(o.material) ? o.material : [o.material];
-              mats.forEach(function (mm) { if (mm.map && mm.map.isCanvasTexture) { try { mm.map.dispose(); } catch (e) {} } });
-            }
-          });
-          scene.remove(m.mesh);
-        }
-      });
+ MOBS.forEach(function (m) {
+if (m.mesh) {
+m.mesh.traverse(function (o) {
+/* v4.9: 旧モブの後片付けを完全化（従来は CanvasTexture のみ解放し、ジオメトリとマテリアルが
+sync のたびに残留していた）。HQ テンプレート共有分（hqPart のジオメトリと MPFB48 マテリアル）は
+次回も使うため解放しない。 */
+if (o.geometry &&!o.userData.hqPart) { try { o.geometry.dispose();} catch (e) {}}
+if (o.material) {
+var mats = Array.isArray(o.material)? o.material: [o.material];
+mats.forEach(function (mm) {
+if (mm.map && mm.map.isCanvasTexture) { try { mm.map.dispose();} catch (e) {}}
+if (!/^MPFB48_/.test(mm.name || "")) { try { mm.dispose();} catch (e) {}}
+});
+}
+});
+scene.remove(m.mesh);
+}
+});
       for (var ri = GOLFER_RIGS.length - 1; ri >= 0; ri--) { if (!GOLFER_RIGS[ri].g.parent) GOLFER_RIGS.splice(ri, 1); }
       MOBS = [];
       if (AREA_IDX === 5) return; // 天空の神域は神聖領域
@@ -3566,7 +3644,7 @@
     window.addEventListener("message", function (ev) {
       var d = ev.data;
       if (!d || typeof d !== "object") return;
-      if (d.type === "goat:pause") { STATE.paused = true; keys = {}; resetVirtualStick(); return; }
+ if (d.type === "goat:pause") { STATE.paused = true; keys = {}; resetVirtualStick(); try { postToParent({ type: "goat:worldPos", x: player.x, z: player.z});} catch (e) {} return;}
       if (d.type === "goat:resume") { STATE.paused = false; startAmbient(); return; }
       if (d.type === "goat:key") { handleUnifiedKey(d.code, d.key, !!d.down); return; }
       if (d.type === "goat:syncState") {
