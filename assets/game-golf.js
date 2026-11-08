@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.12');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.13');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -4421,9 +4421,18 @@ window.HQG._appliedHead = _hpKindG;
 (window.HQG._appliedHeads = window.HQG._appliedHeads || {})[_hk48] = _hpKindG;
 put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       const hatKind = (ch && ch.name === 'DeCham') ? 'flat' : (ch && ch.name === 'Watu') ? 'straw' : 'cap';
-      if(hatKind === 'cap'){ put('cap', J.head, true); put('cap_brim', J.head, true); put('cap_logo', J.head, true); }
-      else if(hatKind === 'straw'){ put('straw', J.head, true); put('straw_top', J.head, true); }
-      else { put('flat', J.head, true); }
+      /* v4.13: ツバが目を覆う問題の修正（ワールド側と同件）。こちらは flip 適用後の座標系のため
+         前上げの tilt 符号は正、支点 z は負になる。寸法は対戦側スケール（ワールドの約0.755倍）。 */
+      const _hatAdjG = (o, lift, tilt, py, pz) => {
+        if(!o) return;
+        const c = Math.cos(tilt), s = Math.sin(tilt), oy = o.position.y, oz = o.position.z;
+        o.position.y = (oy * c - oz * s) + (py - (py * c - pz * s)) + lift;
+        o.position.z = (oy * s + oz * c) + (pz - (py * s + pz * c));
+        o.rotation.x += tilt;
+      };
+      if(hatKind === 'cap'){ put('cap', J.head, true); _hatAdjG(put('cap_brim', J.head, true), 0.008, 0.30, 0.24, -0.148); put('cap_logo', J.head, true); }
+      else if(hatKind === 'straw'){ _hatAdjG(put('straw', J.head, true), 0.015, 0.08, 0.227, 0.0); _hatAdjG(put('straw_top', J.head, true), 0.015, 0.08, 0.227, 0.0); }
+      else { _hatAdjG(put('flat', J.head, true), 0.009, 0.12, 0.227, -0.148); }
       hide(J.head);
       put('upperarm', J.shoulderL, true); block(J.shoulderL);
       put('upperarm', J.shoulderR, true); block(J.shoulderR);

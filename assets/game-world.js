@@ -20,7 +20,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.12');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.13');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -212,10 +212,20 @@ else { window.HQW.pending.push([g, ctx]); window.HQW.loadParts(key);}
 var _hpKind = _hpUsed ? ((_vk && window.HQW.parts['head_' + _vk]) ? _vk : 'watu-base') : (put('head', J.head) ? 'generic' : 'none');
 if(_vk) window.HQW._appliedHead = _hpKind; else window.HQW._appliedMobHead = _hpKind;
 put('earL', J.head); put('earR', J.head); put('nose', J.head);
-      if(ctx.hatType === 'cap'){ put('cap', J.head); put('cap_brim', J.head); put('cap_logo', J.head); }
-      else if(ctx.hatType === 'visor'){ put('cap_brim', J.head); }
-      else if(ctx.hatType === 'straw'){ put('straw', J.head); put('straw_top', J.head); }
-      else { put('flat', J.head); }
+      /* v4.13: ツバが目を覆う問題の修正。頭部ローカル実測では目 y0.219-0.274・眉 y0.254-0.277 に対し
+         キャップツバ前端が y0.238・z0.407 と低く長く、正面〜斜め上から目が隠れていた。
+         ツバ系パーツは付け根を支点に前上げ回転＋持上げし、前端を眉より上へ逃がす。 */
+      var _hatAdj = function(o, lift, tilt, py, pz){
+        if(!o) return;
+        var c = Math.cos(tilt), s = Math.sin(tilt), oy = o.position.y, oz = o.position.z;
+        o.position.y = (oy * c - oz * s) + (py - (py * c - pz * s)) + lift;
+        o.position.z = (oy * s + oz * c) + (pz - (py * s + pz * c));
+        o.rotation.x += tilt;
+      };
+      if(ctx.hatType === 'cap'){ put('cap', J.head); _hatAdj(put('cap_brim', J.head), 0.016, -0.44, 0.33, 0.19); put('cap_logo', J.head); }
+      else if(ctx.hatType === 'visor'){ _hatAdj(put('cap_brim', J.head), 0.016, -0.44, 0.33, 0.19); }
+      else if(ctx.hatType === 'straw'){ _hatAdj(put('straw', J.head), 0.020, -0.08, 0.30, 0.0); _hatAdj(put('straw_top', J.head), 0.020, -0.08, 0.30, 0.0); }
+      else { _hatAdj(put('flat', J.head), 0.012, -0.12, 0.30, 0.19); }
       hideBody(J.head);
       put('upperarm', J.shoulderC); put('upperarm', J.shoulderF);
       put('forearm', J.elbowC); put('forearm', J.elbowF);
