@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.12 | WebGL版</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #05060e;
+      color: #f2f4fc;
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      -webkit-touch-callout: none;
+    }
+
+    #gl {
+      position: absolute;
+      inset: 0;
+      touch-action: none;
+    }
+
+    #gl canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* 画面端の額縁エフェクト（ダメージ赤閃光 ＆ 残影接近時の黒紫オーラ脈動） */
+    #vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.52);
+    }
+
+    #threatAura {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      opacity: 0;
+      box-shadow: inset 0 0 95px rgba(138, 34, 225, 0.78), inset 0 0 28px rgba(72, 10, 130, 0.9);
+      transition: opacity 0.28s ease;
+    }
+
+    #hurtFlash {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, transparent 52%, rgba(255, 32, 48, 0.58) 100%);
+      transition: opacity 0.14s ease;
+    }
+
+    /* 額縁配置HUD（中央80%完全クリア設計） */
+    .hud-card {
+      position: absolute;
+      z-index: 10;
+      background: linear-gradient(160deg, rgba(10, 13, 26, 0.80) 0%, rgba(6, 8, 18, 0.88) 100%);
+      border: 1px solid rgba(255, 216, 117, 0.34);
+      border-radius: 14px;
+      padding: 10px 14px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+    }
+
+    /* 左上：エリア名・プレイヤー・ボール・浄化進捗 */
+    #topLeftHud {
+      top: 12px;
+      left: 12px;
+      min-width: 245px;
+    }
+
+    .area-tag {
+      font-family: 'Cinzel', 'Noto Serif JP', serif;
+      font-size: 10.5px;
+      letter-spacing: 2px;
+      color: #ffd875;
+    }
+
+    .hero-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .hero-nm {
+      font-size: 16px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .hero-rk {
+      font-size: 11px;
+      color: #7ee8fa;
+      font-weight: 700;
+    }
+
+    .mini-stats {
+      display: flex;
+      gap: 12px;
+      margin-top: 7px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 12px;
+      color: #cfd7f2;
+    }
+
+    .mini-stats b {
+      color: #ffe596;
+      font-weight: 800;
+    }
+
+    /* 左下：炎のパワーゲージ（Canvasリアルタイム炎描画）＆ 運命の糸メンタルゲージ */
+    #bottomLeftHud {
+      left: 12px;
+      bottom: 12px;
+      width: 276px;
+      padding: 10px 13px;
+    }
+
+    .gauge-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+
+    #flameCanvas {
+      width: 100%;
+      height: 22px;
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.45);
+      display: block;
+      border: 1px solid rgba(255, 210, 110, 0.28);
+    }
+
+    .thread-wrap {
+      margin-top: 8px;
+    }
+
+    #threadCanvas {
+      width: 100%;
+      height: 14px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      display: block;
+      border: 1px solid rgba(160, 135, 255, 0.28);
+    }
+
+    /* 右上：四神アクションクラブ切替＆緊急護身コマンド */
+    #topRightHud {
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+
+    .club-bar {
+      display: flex;
+      gap: 5px;
+    }
+
+    .cslot {
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 11.5px;
+      font-weight: 800;
+      background: rgba(16, 20, 40, 0.85);
+      border: 1px solid rgba(140, 155, 210, 0.3);
+      color: #b8c2e0;
+      transition: all 0.16s;
+    }
+
+    .cslot:hover {
+      border-color: #ffd875;
+      color: #fff;
+    }
+
+    .cslot.active {
+      background: linear-gradient(135deg, rgba(64, 48, 14, 0.92), rgba(24, 28, 58, 0.95));
+      border-color: #ffd875;
+      color: #fff4cf;
+      box-shadow: 0 0 14px rgba(255, 208, 90, 0.35);
+    }
+
+    #clubDesc {
+      font-size: 11px;
+      color: #ffd875;
+      text-align: right;
+    }
+
+    .sub-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .abtn {
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      background: rgba(28, 34, 64, 0.88);
+      border: 1px solid rgba(255, 216, 117, 0.38);
+      color: #ffe9ad;
+      transition: all 0.15s;
+    }
+
+    .abtn:hover:not(:disabled) {
+      background: rgba(78, 58, 18, 0.92);
+      transform: translateY(-1px);
+    }
+
+    .abtn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* 右下：高精度レーダーミニマップ（タップで瞬間移動対応） */
+    #miniWrap {
+      right: 12px;
+      bottom: 12px;
+      padding: 7px;
+    }
+
+    #minimap {
+      display: block;
+      border-radius: 10px;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .map-legend {
+      font-size: 9.5px;
+      color: #e6f0cf; /* 線刷新フェーズ1: 明るい紙面マップに合わせ凡例を淡黄緑系の明色へ（可読性維持） */
+      text-align: center;
+      margin-top: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    /* 左下（ゲージ上段）：PS5スタイル360°バーチャルアナログスティック（スマホ親指＆PCマウス両対応） */
+    #vStickWrap {
+      position: absolute;
+      left: 20px;
+      bottom: 118px;
+      width: 132px;
+      z-index: 12;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      touch-action: none;
+    }
+
+    #vStickBase {
+      position: relative;
+      width: 122px;
+      height: 122px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(22, 28, 56, 0.55) 0%, rgba(8, 11, 24, 0.82) 75%);
+      border: 1.5px solid rgba(255, 216, 117, 0.48);
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6), inset 0 0 18px rgba(92, 225, 230, 0.16);
+      backdrop-filter: blur(6px);
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #vStickBase.active {
+      border-color: #5ce1e6;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 22px rgba(92, 225, 230, 0.42), inset 0 0 22px rgba(255, 216, 117, 0.22);
+    }
+
+    #vStickBase::after {
+      content: '';
+      position: absolute;
+      inset: 14px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 216, 117, 0.22);
+      pointer-events: none;
+    }
+
+    .vs-dir {
+      position: absolute;
+      font-size: 10px;
+      color: rgba(255, 226, 150, 0.65);
+      font-weight: 900;
+      pointer-events: none;
+      line-height: 1;
+    }
+
+    .vs-u {
+      top: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .vs-d {
+      bottom: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .vs-l {
+      left: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .vs-r {
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #vStickKnob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 50px;
+      height: 50px;
+      margin-left: -25px;
+      margin-top: -25px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 32%, #fff5d1 0%, #e0a92e 55%, #7c5608 100%);
+      border: 1.5px solid #fff3c4;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.75), 0 0 14px rgba(255, 210, 90, 0.55);
+      pointer-events: none;
+      transition: transform 0.05s ease-out;
+    }
+
+    #vStickBase.active #vStickKnob {
+      transition: none;
+    }
+
+    #vStickHint {
+      font-size: 10px;
+      font-weight: 800;
+      color: #cfd8f6;
+      background: rgba(8, 10, 22, 0.72);
+      border: 1px solid rgba(255, 216, 117, 0.26);
+      border-radius: 999px;
+      padding: 2px 9px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* スマホ左画面どこでもタッチ用のフローティングスティックガイド */
+    #floatStick {
+      position: absolute;
+      width: 108px;
+      height: 108px;
+      margin-left: -54px;
+      margin-top: -54px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(92, 225, 230, 0.65);
+      background: radial-gradient(circle, rgba(92, 225, 230, 0.12), rgba(8, 12, 26, 0.45));
+      pointer-events: none;
+      z-index: 11;
+      display: none;
+    }
+
+    #floatStickKnob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 42px;
+      height: 42px;
+      margin-left: -21px;
+      margin-top: -21px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #bffaff, #32b5cc);
+      box-shadow: 0 0 14px rgba(92, 225, 230, 0.8);
+    }
+
+    /* 下部中央：高速ダッシュ切替・波動ショット3段階チャージ・瞬速ブースト */
+    #chargeHud {
+      position: absolute;
+      left: 50%;
+      bottom: 74px;
+      transform: translateX(-50%);
+      z-index: 11;
+      width: 320px;
+      text-align: center;
+      display: none;
+      background: rgba(8, 10, 24, 0.86);
+      border: 1px solid rgba(255, 216, 117, 0.55);
+      border-radius: 12px;
+      padding: 8px 14px;
+      backdrop-filter: blur(6px);
+    }
+
+    .ch-title {
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #fff2c6;
+    }
+
+    .ch-track {
+      height: 11px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+
+    #chargeFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4be1ff, #ffd86b, #ff4757);
+      transition: width 0.04s linear;
+    }
+
+    #fireControls {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      z-index: 12;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    #dashToggleBtn,
+    #boostStepBtn {
+      background: rgba(16, 24, 48, 0.90);
+      color: #d8e4ff;
+      border: 1.5px solid rgba(130, 175, 255, 0.45);
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+      touch-action: none;
+      transition: all 0.15s;
+    }
+
+    #dashToggleBtn.on {
+      background: linear-gradient(135deg, #0d5c6e 0%, #093548 100%);
+      border-color: #5ce1e6;
+      color: #eaffff;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(92, 225, 230, 0.38);
+    }
+
+    #boostStepBtn {
+      background: linear-gradient(135deg, #2b3570 0%, #171d42 100%);
+      border-color: #9bb8ff;
+      color: #eef4ff;
+    }
+
+    #boostStepBtn:active,
+    #boostStepBtn.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      border-color: #fff;
+      transform: scale(0.96);
+    }
+
+    #chargeBtn {
+      background: linear-gradient(135deg, #9c7316 0%, #5c3f05 100%);
+      color: #fff6dc;
+      border: 1.5px solid #ffd875;
+      border-radius: 999px;
+      padding: 10px 22px;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), 0 0 16px rgba(255, 196, 60, 0.28);
+      touch-action: none;
+    }
+
+    #chargeBtn:active {
+      filter: brightness(1.2);
+      transform: scale(0.98);
+    }
+
+    /* スマホ・小型タブレット向け最適レスポンシブ配置（親指操作エリア最大化・重なりゼロ） */
+    @media (max-width: 900px),
+    (max-height: 560px) {
+      #topLeftHud {
+        top: 8px;
+        left: 8px;
+        min-width: 175px;
+        padding: 7px 10px;
+      }
+
+      .hero-nm {
+        font-size: 13.5px;
+      }
+
+      .mini-stats {
+        font-size: 10.5px;
+        gap: 7px;
+        margin-top: 4px;
+        padding-top: 4px;
+      }
+
+      #topRightHud {
+        top: 8px;
+        right: 8px;
+        padding: 7px 9px;
+        gap: 4px;
+      }
+
+      .cslot {
+        padding: 5px 7px;
+        font-size: 10.5px;
+      }
+
+      #clubDesc {
+        display: none;
+      }
+
+      .abtn {
+        padding: 5px 7px;
+        font-size: 10px;
+      }
+
+      #bottomLeftHud {
+        left: 8px;
+        bottom: 8px;
+        width: 178px;
+        padding: 6px 9px;
+      }
+
+      .gauge-head {
+        font-size: 9.5px;
+      }
+
+      #flameCanvas {
+        height: 15px;
+      }
+
+      .thread-wrap {
+        margin-top: 4px;
+      }
+
+      #threadCanvas {
+        height: 10px;
+      }
+
+      #vStickWrap {
+        left: 12px;
+        bottom: 90px;
+        width: 118px;
+      }
+
+      #vStickBase {
+        width: 110px;
+        height: 110px;
+      }
+
+      #vStickKnob {
+        width: 44px;
+        height: 44px;
+        margin-left: -22px;
+        margin-top: -22px;
+      }
+
+      #miniWrap {
+        right: 8px;
+        bottom: 68px;
+        padding: 5px;
+      }
+
+      #minimap {
+        width: 106px;
+        height: 106px;
+      }
+
+      .map-legend {
+        font-size: 8px;
+      }
+
+      #fireControls {
+        left: auto;
+        right: 8px;
+        bottom: 10px;
+        transform: none;
+        gap: 6px;
+      }
+
+      #dashToggleBtn,
+      #boostStepBtn {
+        padding: 9px 11px;
+        font-size: 11px;
+      }
+
+      #chargeBtn {
+        padding: 10px 15px;
+        font-size: 12px;
+      }
+
+      #interactPrompt {
+        bottom: 124px;
+        font-size: 12.5px;
+        padding: 9px 18px;
+      }
+    }
+
+    /* 施設・祠インタラクト案内プロンプト */
+    #interactPrompt {
+      position: absolute;
+      left: 50%;
+      bottom: 132px;
+      transform: translateX(-50%);
+      z-index: 12;
+      display: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, rgba(24, 28, 56, 0.94), rgba(12, 14, 30, 0.96));
+      border: 1.5px solid #ffd875;
+      border-radius: 999px;
+      padding: 9px 22px;
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #fff7df;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.75), 0 0 22px rgba(255, 210, 90, 0.35);
+      white-space: nowrap;
+    }
+
+    #interactPrompt .kbadge {
+      background: #ffd875;
+      color: #1d1402;
+      border-radius: 6px;
+      padding: 2px 8px;
+      margin-right: 8px;
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    /* 浄化・開放シネマバナー ＆ トースト通知 */
+    #centerBanner {
+      position: absolute;
+      left: 50%;
+      top: 16%;
+      transform: translateX(-50%);
+      z-index: 12;
+      text-align: center;
+      pointer-events: none;
+      display: none;
+    }
+
+    #bannerBig {
+      font-family: 'Noto Serif JP', 'Cinzel', serif;
+      font-size: clamp(24px, 3.6vw, 38px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: #fff1be;
+      text-shadow: 0 0 28px rgba(255, 195, 55, 0.95), 0 3px 10px #000;
+    }
+
+    #bannerSub {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #e6ecff;
+      margin-top: 5px;
+      text-shadow: 0 2px 6px #000;
+      letter-spacing: 1px;
+    }
+
+    #toastArea {
+      position: absolute;
+      left: 50%;
+      top: 76px;
+      transform: translateX(-50%);
+      z-index: 11;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: rgba(10, 13, 28, 0.85);
+      border: 1px solid rgba(255, 216, 117, 0.45);
+      color: #ffecb8;
+      border-radius: 999px;
+      padding: 5px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      animation: popToast 0.22s ease-out;
+    }
+
+    @keyframes popToast {
+      from {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* =====================================================================
+       LAYOUT FIX v4.0（④スマホ縦画面：上下HUDの重なり解消／①上段パネルの両立）
+       ・3Dフィールド描画は一切縮小しない。HUDの配置とサイズのみを最適化する。
+       ===================================================================== */
+    @media (max-width: 640px) {
+      /* 上段：左ステータスと右クラブパネルを両方とも画面内に収める */
+      #topLeftHud { min-width: 0; width: 146px; padding: 6px 8px; }
+      .hero-line { flex-direction: column; align-items: flex-start; gap: 0; }
+      .hero-nm { font-size: 12.5px; }
+      .hero-rk { font-size: 9px; }
+      .mini-stats { flex-wrap: wrap; gap: 3px 8px; font-size: 10px; margin-top: 4px; padding-top: 4px; }
+      #topRightHud { max-width: 214px; }
+      .club-bar { flex-wrap: wrap; justify-content: flex-end; }
+      .cslot { font-size: 10px; padding: 4px 6px; }
+      /* 下段：スティック／ゲージ／アクションドック／ミニマップを段差配置にして重ねない */
+      #bottomLeftHud { bottom: 62px; width: 190px; }
+      #vStickWrap { bottom: 200px; left: 10px; width: 104px; }
+      #vStickBase { width: 96px; height: 96px; }
+      #vStickHint { font-size: 9px; padding: 2px 7px; }
+      #fireControls { bottom: 10px; left: 0; transform: none; width: 100%; justify-content: center; padding: 0 4px; box-sizing: border-box; }
+      #dashToggleBtn, #boostStepBtn { font-size: 10.5px; padding: 7px 9px; flex-shrink: 1; }
+      #chargeBtn { font-size: 11px; padding: 8px 12px; flex-shrink: 1; white-space: normal; text-align: center; line-height: 1.25; }
+      #miniWrap { bottom: 62px; }
+      #minimap { width: 104px; height: 104px; }
+      .map-legend { font-size: 8.5px; white-space: normal; }
+      #miniWrap { max-width: 124px; }
+      #minimap { width: 104px !important; height: 104px !important; }
+    }
+  </style>
+<script type="importmap">
+{"imports":{
+ "three": "./assets/lib/r180/three.module.js?v=4.12",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.12",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.12",
+ "three/addons/": "./assets/lib/r180/addons/",
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.12",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.12"
+}}
+</script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.12"></script>
+</head>
+
+<body>
+
+  <div id="gl"></div>
+  <div id="vignette"></div>
+  <div id="threatAura"></div>
+  <div id="hurtFlash"></div>
+
+  <!-- 左上：聖地＆ステータス額縁 -->
+  <div id="topLeftHud" class="hud-card">
+    <div class="area-tag" id="hudArea">KYOTO — 天孫降臨の地</div>
+    <div class="hero-line">
+      <span class="hero-nm" id="hudName">Watu</span>
+      <span class="hero-rk" id="hudRank">100切り挑戦者</span>
+    </div>
+    <div class="mini-stats">
+      <span>⚪ 球 <b id="ballNum">18</b></span>
+      <span>✨ 浄化 <b id="pureNum">0/6</b></span>
+      <span>💰 <b id="goldNum">¥2,400</b></span>
+    </div>
+  </div>
+
+  <!-- 左下：炎のパワー ＆ 運命の糸メンタル -->
+  <div id="bottomLeftHud" class="hud-card">
+    <div class="gauge-head">
+      <span style="color:#ffd478;">🔥 炎パワー（飛距離・安定力）</span>
+      <span id="powerNum" style="color:#fff;">100%</span>
+    </div>
+    <canvas id="flameCanvas" width="248" height="22"></canvas>
+    <div class="thread-wrap">
+      <div class="gauge-head">
+        <span style="color:#cbb2ff;">🕸 運命の糸（メンタル集中力）</span>
+        <span id="mentalNum" style="color:#e9dfff;">100%</span>
+      </div>
+      <canvas id="threadCanvas" width="248" height="14"></canvas>
+    </div>
+  </div>
+
+  <!-- 右上：四神波動クラブ切替 ＆ ファー咆哮・緊急プッシュ -->
+  <div id="topRightHud" class="hud-card">
+    <div class="club-bar">
+      <button class="cslot active" data-club="0">[1] 🐉 青龍DR</button>
+      <button class="cslot" data-club="1">[2] 🔥 朱雀IR</button>
+      <button class="cslot" data-club="2">[3] ⚡ 白虎SW</button>
+      <button class="cslot" data-club="3">[4] 🐢 玄武PT</button>
+    </div>
+    <div id="clubDesc">青龍：超長距離・螺旋龍貫通ビーム（地面光溝）</div>
+    <div class="sub-actions">
+      <button class="abtn" id="btnFore" title="Eキー：周囲の残影を一斉にひるませる咆哮（球消費なし）">[E] 📢 FORE!咆哮</button>
+      <button class="abtn" id="btnPush" title="Fキー：至近距離の残影を吹き飛ばす緊急護身（球消費なし）">[F] 💨 緊急押返し</button>
+      <button class="abtn" id="btnQSave" title="Qキー：現在地をクイックセーブ">[Q] 💾 即保存</button>
+    </div>
+  </div>
+
+  <!-- 右下：ミニマップ（タップで瞬間移動対応） -->
+  <div id="miniWrap" class="hud-card" title="ミニマップの任意の場所をクリック／タップするとそこへ瞬時に高速移動します">
+    <canvas id="minimap" width="156" height="156"></canvas>
+    <div class="map-legend">🟣残影 🟢浄化 🟡施設 🔴決戦門 (タップ瞬移)</div>
+  </div>
+
+  <!-- 左下：スマホ＆PC両対応 360°バーチャルスティック -->
+  <div id="vStickWrap">
+    <div id="vStickBase" title="ドラッグまたは方向タップで360°高速移動（WASD・矢印キー・地面タップ移動にも対応）">
+      <span class="vs-dir vs-u">▲</span>
+      <span class="vs-dir vs-d">▼</span>
+      <span class="vs-dir vs-l">◀</span>
+      <span class="vs-dir vs-r">▶</span>
+      <div id="vStickKnob"></div>
+    </div>
+    <div id="vStickHint">移動 (WASD / 地面タップ可)</div>
+  </div>
+  <div id="floatStick">
+    <div id="floatStickKnob"></div>
+  </div>
+
+  <!-- チャージゲージ ＆ 高速移動・発射操作 -->
+  <div id="chargeHud">
+    <div class="ch-title">四神波動チャージ <span id="chargeLv" style="color:#5ce1e6;">Lv.1</span></div>
+    <div class="ch-track">
+      <div id="chargeFill"></div>
+    </div>
+  </div>
+
+  <div id="interactPrompt"><span class="kbadge">👆 タップ / Enter</span><span id="promptLabel">調べる</span></div>
+
+  <div id="fireControls">
+    <button id="dashToggleBtn" class="on" title="常時高速ダッシュのON/OFF切替">⚡ 常時高速: ON</button>
+    <button id="chargeBtn">⛳ 波動ショット (Space / 長押し)</button>
+    <button id="boostStepBtn" title="Shiftキーまたは押下で超高速ブーストステップ！">🚀 瞬速ダッシュ</button>
+  </div>
+
+  <div id="centerBanner">
+    <div id="bannerBig"></div>
+    <div id="bannerSub"></div>
+  </div>
+  <div id="toastArea"></div>
+
+  
+  
+  
+  
+  
+
+
+</body>
+
+</html>
