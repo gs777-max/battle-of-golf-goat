@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.9）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.11）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -351,21 +351,25 @@
   .icard-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 
   /* 岐路・ドラマ選択モーダル */
+  /* v4.9プレビュー ④: 長文でもボタンが画面外へ押し出されないよう、カードを画面内に収め本文だけスクロールさせる */
+  #dramaModal { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
   .drama-card {
     max-width: 720px; width: 100%; padding: 34px 40px; text-align: center;
     background: linear-gradient(180deg, rgba(16,18,38,0.97), rgba(7,8,18,0.99));
     border: 1.5px solid var(--gold); border-radius: 22px;
     box-shadow: 0 0 70px rgba(255,195,60,0.22);
+    display: flex; flex-direction: column; max-height: calc(100dvh - 40px);
   }
-  .drama-tag { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 4px; color: var(--gold); }
-  .drama-title { font-family: 'Noto Serif JP', serif; font-size: 26px; font-weight: 900; margin-top: 8px; color: #fff4d2; }
+  .drama-tag { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 4px; color: var(--gold); flex-shrink: 0; }
+  .drama-title { font-family: 'Noto Serif JP', serif; font-size: 26px; font-weight: 900; margin-top: 8px; color: #fff4d2; flex-shrink: 0; }
   .drama-text {
     font-family: 'Noto Serif JP', serif; font-size: 14.5px; line-height: 1.95;
     color: #d8def2; margin: 18px 0 24px; text-align: left;
     background: rgba(255,255,255,0.03); padding: 16px 20px; border-radius: 12px;
     border-left: 3px solid var(--gold);
+    overflow-y: auto; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch;
   }
-  .choice-list { display: flex; flex-direction: column; gap: 10px; }
+  .choice-list { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
   .choice-btn {
     text-align: left; padding: 14px 18px; border-radius: 12px; cursor: pointer;
     background: rgba(26, 32, 60, 0.88); border: 1px solid rgba(255,216,117,0.38);
@@ -469,7 +473,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.9【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.11【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>

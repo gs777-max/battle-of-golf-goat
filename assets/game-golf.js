@@ -1,11 +1,27 @@
 
 /* ===== v4.3 HQアセット (読込失敗時は従来表示に自動フォールバック) ===== */
 window.HQG = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
+/* v4.10 A2: 診断記録（記録のみ・挙動変更なし）。失敗は window.__GOAT_DIAG__ に集約し、
+   最終エラーのみ保持する（履歴配列は作らない）。既存の __GOAT_ENGINE__ / __GOAT_AV__ とは別名。 */
+window.__GOAT_DIAG__ = window.__GOAT_DIAG__ || {};
+(function(D){
+  D.ctx = D.ctx || { lost:false, checks:0, lastCheckAt:0 };
+  D.golfLoop = D.golfLoop || { consecErrors:0, lastError:null, lastErrorAt:0 };
+  D.worldAnimate = D.worldAnimate || { consecErrors:0, lastError:null, lastErrorAt:0 };
+  D.hq = D.hq || {};
+  D.hq.player = D.hq.player || { failed:false, error:null, detail:null, at:0 };
+  D.hq.courseDress = D.hq.courseDress || { failed:false, error:null, detail:null, at:0 };
+  D.hq.sky = D.hq.sky || { failed:false, error:null, detail:null, at:0 };
+  D.ibl = D.ibl || { failed:false, error:null, detail:null, at:0 };
+})(window.__GOAT_DIAG__);
+window.__goatDiagFail = function(slot, detail, e){ try{ var D = window.__GOAT_DIAG__; if(!D) return; var s = (slot === "ibl") ? D.ibl : (D.hq && D.hq[slot]); if(!s) return; s.failed = true; s.detail = detail; s.error = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.at = Date.now(); }catch(_){} };
+window.__goatDiagLoopErr = function(slot, e){ try{ var D = window.__GOAT_DIAG__; if(!D || !D[slot]) return; var s = D[slot]; s.consecErrors = (s.consecErrors || 0) + 1; s.lastError = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.lastErrorAt = Date.now(); }catch(_){} };
+window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(D && D[slot]) D[slot].consecErrors = 0; }catch(_){} };
 (function(){
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.9');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.11');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -50,6 +66,34 @@ loadTex('head_' + k, 1); loadTex('skin_' + k, 1);
 それでも失敗すれば HQ 適用自体を行わない（従来モデル表示のフォールバック維持）。
 ヘッドの読込失敗時も再試行し、最終失敗時は汎用ヘッドで適用を進める。 */
 window.HQG._pBase = false; window.HQG._pHead = {};
+/* プレビュー堅牢化（world 側 HQW と同型）: ① MeshoptDecoder ready ゲート
+② 再試行は打ち切らず createImageBitmap 無効経路と交互に試す
+③ 適用ヘッド種別と失敗理由を _appliedHead / _diag に記録する */
+window.HQG._diag = { baseFails: 0, headFails: {}, lastErr: '', decoderWaited: false};
+window.HQG._noteErr = function(where, e){
+try{ window.HQG._diag.lastErr = where + ': ' + String((e && e.message) || e || 'load error').slice(0, 140);}catch(_){}
+};
+window.HQG._decoderReady = function(cb){
+var d = window.MeshoptDecoder;
+if(!d || d.supported){ cb(); return;}
+window.HQG._diag.decoderWaited = true;
+var iv = setInterval(function(){
+if(!window.MeshoptDecoder || window.MeshoptDecoder.supported){ clearInterval(iv); cb();}
+}, 200);
+};
+var _bmDepthG = 0, _bmSavedG = null;
+function _bmOffG(){ if(_bmDepthG === 0){ _bmSavedG = window.createImageBitmap; try{ window.createImageBitmap = undefined;}catch(e){}} _bmDepthG++;}
+function _bmOnG(){ _bmDepthG--; if(_bmDepthG <= 0){ _bmDepthG = 0; try{ window.createImageBitmap = _bmSavedG;}catch(e){}}}
+window.HQG._glbLoad = function(url, noBitmap, onOk, onFail){
+window.HQG._decoderReady(function(){
+try{
+var loader = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+if(noBitmap) _bmOffG();
+loader.load(url, function(g){ if(noBitmap) _bmOnG(); onOk(g);}, undefined, function(err){ if(noBitmap) _bmOnG(); onFail(err);});
+}catch(e){ if(noBitmap) _bmOnG(); onFail(e);}
+});
+};
 window.HQG._flushPending = function(){
 if(!window.HQG._pBase) return;
 var pend = window.HQG.pending.splice(0);
@@ -59,46 +103,44 @@ window.HQG.readyFor = function(key){
 if(!window.HQG._pBase ||!window.HQG.parts) return false;
 if(!key || key === 'watu') return true;
 var s = window.HQG._pHead[key];
-return s === 'ok' || s === 'err';
+/* 堅牢化: ヘッド未着のまま汎用ヘッドで適用を進めることはしない */
+return s === 'ok';
 };
 function mergePartsG(gltf, minRoots){
 var roots = 0;
 gltf.scene.children.forEach(function(root){ if(root && root.name){ (window.HQG.parts = window.HQG.parts || {})[root.name] = root; roots++;}});
 return roots >= minRoots;
 }
-window.HQG._baseFail = function(){
+window.HQG._baseFail = function(err){
 window.HQG._fails = (window.HQG._fails || 0) + 1;
-if(window.HQG._fails <= 3){ setTimeout(function(){ window.HQG._loadBase();}, 2500);}
+window.HQG._diag.baseFails = window.HQG._fails;
+window.HQG._noteErr('base', err);
+/* 堅牢化: 打ち切らず再試行し続ける（バックオフ上限10秒、偶数試行は ImageBitmap 無効経路） */
+var delay = Math.min(2500 * Math.ceil(window.HQG._fails / 2), 10000);
+setTimeout(function(){ window.HQG._loadBase();}, delay);
 };
 window.HQG._loadBase = function(){
-try{
-var loader = new THREE.GLTFLoader();
-if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-loader.load('assets/models/hero_golf_base.glb' + AVQ, function(gltf){
-if(!mergePartsG(gltf, 10)){ window.HQG._baseFail(); return;}
+var noBitmap = ((window.HQG._fails || 0) % 2) === 1;
+window.HQG._glbLoad('assets/models/hero_golf_base.glb' + AVQ, noBitmap, function(gltf){
+if(!mergePartsG(gltf, 10)){ window.HQG._baseFail(new Error('base roots < 10')); return;}
 window.HQG._pBase = true;
 window.HQG._flushPending();
-}, undefined, function(){ window.HQG._baseFail();});
-}catch(e){ window.HQG._baseFail();}
+}, function(err){ window.HQG._baseFail(err);});
 };
 window.HQG._loadHead = function(key){
-try{
-var hl = new THREE.GLTFLoader();
-if(window.MeshoptDecoder) hl.setMeshoptDecoder(window.MeshoptDecoder);
-hl.load('assets/models/hero_golf_head_' + key + '.glb' + AVQ, function(gltf){
+var f = window.HQG._pHead[key + '_f'] || 0;
+window.HQG._glbLoad('assets/models/hero_golf_head_' + key + '.glb' + AVQ, (f % 2) === 1, function(gltf){
 mergePartsG(gltf, 1);
 window.HQG._pHead[key] = 'ok';
 window.HQG._flushPending();
-}, undefined, function(){
-var f = window.HQG._pHead[key + '_f'] = (window.HQG._pHead[key + '_f'] || 0) + 1;
-if(f <= 3){ setTimeout(function(){ window.HQG._loadHead(key);}, 2500);}
-else { window.HQG._pHead[key] = 'err'; window.HQG._flushPending();}
+}, function(err){
+var nf = window.HQG._pHead[key + '_f'] = f + 1;
+window.HQG._diag.headFails[key] = nf;
+window.HQG._noteErr('head_' + key, err);
+/* 堅牢化: 'err'（汎用ヘッドで進める）には落とさず、成功するまで再試行する */
+var delay = Math.min(2500 * Math.ceil(nf / 2), 10000);
+setTimeout(function(){ window.HQG._loadHead(key);}, delay);
 });
-}catch(e){
-var f2 = window.HQG._pHead[key + '_f'] = (window.HQG._pHead[key + '_f'] || 0) + 1;
-if(f2 <= 3){ setTimeout(function(){ window.HQG._loadHead(key);}, 2500);}
-else { window.HQG._pHead[key] = 'err'; window.HQG._flushPending();}
-}
 };
 window.HQG.loadParts = function(charKey){
 try{
@@ -2588,15 +2630,15 @@ class GolfGame{
       skyTop=0x1a4a8a; skyHorizon=0x4a80c0; skyGround=0x2a4a18;
     }
 
-    // L1: スカイドーム（大球）
+    // L1: スカイドーム（大球）/* v4.10 B1: 霧で漂白・縞化しないよう fog:false（グラデーションは後段のGLSLドームが担う） */
     const skyGeo=new THREE.SphereGeometry(900,32,16);
-    const skyMat=new THREE.MeshBasicMaterial({color:skyTop,side:THREE.BackSide});
+    const skyMat=new THREE.MeshBasicMaterial({color:skyTop,side:THREE.BackSide,fog:false});
     const skyMesh=new THREE.Mesh(skyGeo,skyMat);
     this.scene.add(skyMesh);
 
     // L2: 地平線グラデーション帯
     const horizonGeo=new THREE.CylinderGeometry(850,850,200,32,1,true);
-    const horizonMat=new THREE.MeshBasicMaterial({color:skyHorizon,side:THREE.BackSide,transparent:true,opacity:0.7});
+    const horizonMat=new THREE.MeshBasicMaterial({color:skyHorizon,side:THREE.BackSide,transparent:true,opacity:0.7,fog:false});
     const horizonMesh=new THREE.Mesh(horizonGeo,horizonMat);
     horizonMesh.position.y=-100;
     this.scene.add(horizonMesh);
@@ -2605,7 +2647,7 @@ class GolfGame{
     const hazeGeo=new THREE.CylinderGeometry(800,800,80,32,1,true);
     const hazeMat=new THREE.MeshBasicMaterial({
       color:w.type==="fog"?0xaabaa0:w.type==="rain"?0x303840:skyHorizon,
-      side:THREE.BackSide,transparent:true,opacity:w.type==="fog"?0.85:0.35
+      side:THREE.BackSide,transparent:true,opacity:w.type==="fog"?0.85:0.35,fog:false
     });
     const hazeMesh=new THREE.Mesh(hazeGeo,hazeMat);
     hazeMesh.position.y=-160;
@@ -2615,13 +2657,13 @@ class GolfGame{
     if(w.type==="sunny"||w.type==="strongWind"){
       const sunGeo=new THREE.SphereGeometry(w.type==="sunny"?22:16,16,10);
       const sunCol=w.type==="sunny"?0xfff8c0:0xffe8a0;
-      const sunMat=new THREE.MeshBasicMaterial({color:sunCol});
+      const sunMat=new THREE.MeshBasicMaterial({color:sunCol,fog:false});
       const sunSphere=new THREE.Mesh(sunGeo,sunMat);
       sunSphere.position.set(180,320,-500);
       this.scene.add(sunSphere);
       // 太陽の光輪
       const glowGeo=new THREE.SphereGeometry(w.type==="sunny"?40:28,12,8);
-      const glowMat=new THREE.MeshBasicMaterial({color:sunCol,transparent:true,opacity:0.15});
+      const glowMat=new THREE.MeshBasicMaterial({color:sunCol,transparent:true,opacity:0.15,fog:false});
       const glowSphere=new THREE.Mesh(glowGeo,glowMat);
       glowSphere.position.copy(sunSphere.position);
       this.scene.add(glowSphere);
@@ -2777,6 +2819,14 @@ class GolfGame{
             stk.position.set(sd*(fwWidth/2 + 4.8), 0.68, z);
             this.scene.add(stk);
           }
+        }
+
+        // ★ 線ブラッシュアップ: OB白杭を結ぶ白ライン帯（アコーディア図のOB白線を3D側にも）
+        for(const sd of [-1, 1]){
+          const obLine = new THREE.Mesh(new THREE.PlaneGeometry(0.3, TH*0.93), new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.9}));
+          obLine.rotation.x = -Math.PI/2;
+          obLine.position.set(sd*(fwWidth/2 + 4.8), 0.05, -TH*0.475);
+          this.scene.add(obLine);
         }
 
         // ファーストカット境界帯
@@ -4317,7 +4367,11 @@ return;
       J.torsoMesh.scale.x *= 0.94; J.torsoMesh.scale.z *= 0.94;
       if(J.torso) for(let i = 0; i < J.torso.children.length; i++){ const c = J.torso.children[i]; if(c.isMesh && c.geometry && c.geometry.type === 'TorusGeometry') c.visible = false; }
       var _hk48 = {Watu:'watu',Matuya:'matuya',TIiger:'tiiger',Junbo:'junbo',McIlro:'mcilro',DeCham:'decham'}[ch && ch.name] || 'watu';
-      put('head_' + _hk48, J.head, true) || put('head', J.head, true); put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
+      var _hpUsedG = put('head_' + _hk48, J.head, true);
+var _hpKindG = _hpUsedG ? ((P['head_' + _hk48]) ? _hk48 : 'watu-base') : (put('head', J.head, true) ? 'generic' : 'none');
+window.HQG._appliedHead = _hpKindG;
+(window.HQG._appliedHeads = window.HQG._appliedHeads || {})[_hk48] = _hpKindG;
+put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       const hatKind = (ch && ch.name === 'DeCham') ? 'flat' : (ch && ch.name === 'Watu') ? 'straw' : 'cap';
       if(hatKind === 'cap'){ put('cap', J.head, true); put('cap_brim', J.head, true); put('cap_logo', J.head, true); }
       else if(hatKind === 'straw'){ put('straw', J.head, true); put('straw_top', J.head, true); }
@@ -4388,7 +4442,7 @@ return;
           const sp = new THREE.Sprite(sm);
           const sc = 60 + Math.random() * 70;
           sp.scale.set(sc, sc * 0.32, 1);
-          sp.position.set(-280 + Math.random() * 560, 48 + Math.random() * 40, -280 + Math.random() * 560);
+          sp.position.set(-280 + Math.random() * 560, 170 + Math.random() * 60, -350 - Math.random() * 450); /* v4.10 B1: 空撮で地面のシミにならないよう雲を上空・遠方へ（旧y48-88・z±280）。地上視点では低空に見えるよう遠方に置く */
           sp.userData.v = 1.4 + Math.random() * 1.6;
           this.scene.add(sp); H._clouds.push(sp);
         }
@@ -4406,7 +4460,7 @@ return;
         };
         tick();
       }
-    }catch(e){}
+    }catch(e){ window.__goatDiagFail("player", "_hqApplyPlayer", e); }
   }
   /* v4.4: コースの作り込み - 林(幹+葉クラスタのInstancedMesh) / バンカー窪みの強調 / 空の空気感 */
   _hqCourseDress(){
@@ -4427,7 +4481,7 @@ return;
     try{
       if(this._allLights) for(const e of this._allLights){ if(e.light && e.base){ e.base *= 0.58; e.light.intensity = e.base * (this._brightnessMultiplier || 1); } } if(this.renderer) this.renderer.toneMappingExposure = 0.8;
       if(this.scene && this.scene.fog && this.scene.fog.color) this.scene.fog.color.lerp(new THREE.Color(0x9db8cc), 0.2);
-    }catch(e){}
+    }catch(e){ window.__goatDiagFail("courseDress", "lights", e); }
 
     /* --- 旧・球体雲を隠し、柔らかいスプライト雲に置換 --- */
     try{
@@ -4439,11 +4493,11 @@ return;
           const sp = new THREE.Sprite(sm);
           const sc = 130 + rnd() * 130;
           sp.scale.set(sc, sc * 0.30, 1);
-          sp.position.set(-420 + rnd() * 840, 95 + rnd() * 70, -80 - rnd() * 520);
+          sp.position.set(-420 + rnd() * 840, 200 + rnd() * 70, -350 - rnd() * 450); /* v4.10 B1: 空撮で地面のシミにならないよう雲を上空・遠方へ（旧y95-165・z-80〜-600）。地上視点では低空に見えるよう遠方に置く */
           this.scene.add(sp);
         }
       }
-    }catch(e){}
+    }catch(e){ window.__goatDiagFail("courseDress", "clouds", e); }
 
     /* --- 中心線 (tee -> pin, dogleg で膨らむ) --- */
     const tee = this.teePos || new THREE.Vector3(0, 0, 0);
@@ -4513,7 +4567,7 @@ return;
       const blobM = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true });
       const blobs = new THREE.InstancedMesh(blobG, blobM, NT * 3);
       const dummy = new THREE.Object3D();
-      const leafCols = [new THREE.Color(0x1d4d16), new THREE.Color(0x27631d), new THREE.Color(0x2e6b22), new THREE.Color(0x1a4218)];
+      const leafCols = [new THREE.Color(0x1d4d16), new THREE.Color(0x27631d), new THREE.Color(0x2e6b22), new THREE.Color(0x1a4218)].map(c => c.multiplyScalar(0.55)); /* v4.10 B1: 強い光で白く飛ぶため葉色を濃くして実測の緑に近づける */
       let ti = 0, bi = 0;
       for(let sIdx = 0; sIdx < NT; sIdx++){
         const t = 0.03 + 0.94 * (sIdx / NT) + (rnd() - 0.5) * 0.012;
@@ -4601,6 +4655,11 @@ return;
     /* --- 遠景: なだらかな丘陵+樹海の地平線 (三角山は廃止) --- */
     {
       const hillCols = [0x274d21, 0x2f5a26, 0x22451d];
+      /* v4.10 B1: 晴天時は fog:false で距離による漂白を無くす（雨・霧天は従来の霧に任せる）。
+         沈めて扁平化し、地平線に着地させる（旧 y-0.06 / 扁平0.26-0.36 で浮いて見えた）。
+         ※ 霞色の焼き込みは太陽光で白く飛ぶため不採用。元の深緑のまま fog を切るのが最も自然だった（diag nofog で確認） */
+      const hillWType = (this.weather && this.weather.type) || "sunny";
+      const hillClear = (hillWType !== "fog" && hillWType !== "rain");
       const nH = mob ? 5 : 8;
       for(let i = 0; i < nH; i++){
         const ang = (i / nH) * Math.PI * 2 + rnd() * 0.3;
@@ -4608,9 +4667,9 @@ return;
         const hx = Math.cos(ang) * dist, hz = -TH / 2 + Math.sin(ang) * dist;
         const hr = 190 + rnd() * 150;
         const hill = new THREE.Mesh(new THREE.SphereGeometry(hr, 14, 10),
-          new THREE.MeshLambertMaterial({ color: hillCols[i % 3] }));
-        hill.scale.set(1, 0.26 + rnd() * 0.10, 0.75);
-        hill.position.set(hx, -hr * 0.06, hz);
+          new THREE.MeshLambertMaterial({ color: hillCols[i % 3], fog: !hillClear }));
+        hill.scale.set(1, 0.30 + rnd() * 0.08, 0.75);
+        hill.position.set(hx, -hr * 0.15, hz);
         this.scene.add(hill);
       }
     }
@@ -4699,13 +4758,25 @@ return;
     this.dirArrowMesh.visible=false;
     this.scene.add(this.dirArrowMesh);
 
-    // ---- ピン方向ガイド（ピンへの細い緑ライン）----
-    const pinGuidePts=[new THREE.Vector3(0,0.18,0),new THREE.Vector3(0,0.18,200)];
-    this.pinGuideMesh=new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(pinGuidePts),
-      new THREE.LineBasicMaterial({color:0x00ff88,transparent:true,opacity:0.55})
-    );
-    this.pinGuideMesh.visible=false;
+    // ---- ガイドリボン生成（地面に貼る帯: 色グロー下地+白芯 = レイアウト図の線の作法）----
+    const makeGuideRibbon=(len, glowColor, glowOp)=>{
+      const grp=new THREE.Group();
+      const mk=(w,color,op)=>{
+        const geo=new THREE.PlaneGeometry(w,len);
+        geo.rotateX(Math.PI/2); // 丈方向(+Y)を +Z へ倒す
+        geo.translate(0,0,len/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,side:THREE.DoubleSide,depthWrite:false}));
+        m.renderOrder=5;
+        grp.add(m);
+      };
+      mk(0.62,glowColor,glowOp);
+      mk(0.26,0xffffff,0.95);
+      grp.visible=false;
+      return grp;
+    };
+
+    // ---- ピン方向ガイド（ピンへの帯状ガイド）----
+    this.pinGuideMesh=makeGuideRibbon(200,0x00ff88,0.32);
     this.scene.add(this.pinGuideMesh);
 
     // ---- 弾道ドット ----
@@ -4734,12 +4805,9 @@ return;
     }
     this.carryMarkerMesh=cm;cm.visible=false;this.scene.add(cm);
 
-    // ---- パットライン ----
-    this.puttLineMesh=new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0.18,0),new THREE.Vector3(0,0.18,40)]),
-      new THREE.LineBasicMaterial({color:0x00ffdd,linewidth:2,transparent:true,opacity:0.82})
-    );
-    this.puttLineMesh.visible=false;this.scene.add(this.puttLineMesh);
+    // ---- パットライン（帯状ガイド）----
+    this.puttLineMesh=makeGuideRibbon(40,0x00ffdd,0.38);
+    this.scene.add(this.puttLineMesh);
   }
 
   _updateAimArrow(){
@@ -5056,8 +5124,12 @@ return;
     const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
 
-    // 背景：ラフ（深い河川敷の濃緑 #0e2a0a）
-    ctx.fillStyle = "#0e2a0a";
+    // 背景：ラフ（淡黄緑・アコーディア公式レイアウト図の紙面表現）※線ブラッシュアップ
+    const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.42, 6, W * 0.5, H * 0.5, W * 0.78);
+    bgGrad.addColorStop(0, "#dff29e");
+    bgGrad.addColorStop(0.65, "#c4e06a");
+    bgGrad.addColorStop(1, "#a9cc4e");
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, W, H);
 
     const isTodaCourse = !!(this.currentCourse && (this.currentCourse.id === "toda" || this.currentCourse.id === "toda_dark" || this.currentCourse.isToda2Way));
@@ -5126,13 +5198,21 @@ return;
       ctx.lineTo(teeX - Math.cos(perpAngle)*hw1, teeY - Math.sin(perpAngle)*hw1 + 4);
       ctx.closePath();
 
-      // フェアウェイのベース塗り
-      ctx.fillStyle = "#5c9625";
+      // フェアウェイのベース塗り（アコーディア式: 柔らかい影+フリンジ縁+鮮緑）※線ブラッシュアップ
+      ctx.save();
+      ctx.translate(1.2, 1.8);
+      ctx.fillStyle = "rgba(70,100,25,0.25)";
       ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = "#57b52b";
+      ctx.fill();
+      ctx.strokeStyle = "#93cf55";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
 
-      // GDO特有の斜めシマシマ刈り目ストライプ
+      // 斜めシマシマ刈り目ストライプ
       ctx.clip();
-      ctx.strokeStyle = "rgba(120, 190, 60, 0.35)";
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
       ctx.lineWidth = 3.2;
       for (let s = -H; s < W + H; s += 6.5) {
         ctx.beginPath();
@@ -5143,8 +5223,8 @@ return;
       ctx.restore();
 
       // 3. カート道（白い細線）- 添付画像通りに左サイドを通る
-      ctx.strokeStyle = "rgba(230, 235, 240, 0.75)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "#878d91";
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
       // ティー周囲から左サイドへカーブ
       ctx.arc(teeX, teeY + 2, 7, 0, Math.PI);
@@ -5152,15 +5232,20 @@ return;
       ctx.bezierCurveTo(teeX - 8, teeY - 20, cornerX - 18, cornerY + 15, cornerX - 12, cornerY - 2);
       ctx.lineTo(greenAreaX - 4, greenAreaY + 10);
       ctx.stroke();
+      ctx.strokeStyle = "#c9ced3";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
 
       // 4. コーナー左側の小さな青い池（添付画像中央のハザード）
-      ctx.fillStyle = "#4682b4";
+      ctx.fillStyle = "#2f7fe0";
       ctx.beginPath();
       ctx.ellipse(cornerX - 16, cornerY + 4, 3.5, 2.5, -0.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#88ccff";
-      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = "#e23b3b";
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([2.5, 2.5]);
       ctx.stroke();
+      ctx.setLineDash([]);
 
       // 5. 木々の列（添付画像通りに右側・左側・コーナー奥・内角に密集配置）
       const drawTreeWithShadow = (tx, ty, r = 3.2) => {
@@ -5220,7 +5305,7 @@ return;
       ctx.fillText("🚫直角90°", W * 0.44, H * 0.72);
 
       // 6. ティーグラウンド（手前下部・明るい緑の長方形）
-      ctx.fillStyle = "#7CCD7C";
+      ctx.fillStyle = "#35c94a";
       ctx.fillRect(teeX - 5, teeY - 3, 10, 6);
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 0.8;
@@ -5245,21 +5330,21 @@ return;
       ctx.lineWidth = 0.8;
       ctx.stroke();
 
-      // グリーン1（手前・Hole 8用）
-      ctx.fillStyle = isIN ? "#269e26" : "#32cd32";
+      // グリーン1（手前・Hole 8用）※黄緑+細縁に調和
+      ctx.fillStyle = isIN ? "#a9d63f" : "#c2e650";
       ctx.beginPath();
       ctx.arc(g1X, g1Y, 6.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#77b01e";
       ctx.lineWidth = 1;
       ctx.stroke();
 
       // グリーン2（奥・Hole 17用）
-      ctx.fillStyle = isIN ? "#32cd32" : "#269e26";
+      ctx.fillStyle = isIN ? "#c2e650" : "#a9d63f";
       ctx.beginPath();
       ctx.arc(g2X, g2Y, 6.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#77b01e";
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -5276,10 +5361,16 @@ return;
       ctx.beginPath();
       ctx.arc(cornerX, cornerY, 3.2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(90,60,0,0.65)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
       ctx.font = "bold 7px sans-serif";
-      ctx.fillStyle = "#ffff55";
+      ctx.shadowColor = "rgba(255,255,255,0.9)";
+      ctx.shadowBlur = 2;
+      ctx.fillStyle = "#8a6500";
       ctx.textAlign = "left";
       ctx.fillText("200y", cornerX + 3, cornerY - 2);
+      ctx.shadowBlur = 0;
 
       // 9. ボール位置投影（斜め直角コース座標変換）
       if(this.ball){
@@ -5339,42 +5430,169 @@ return;
       const teeY = H - 12;
       const pinY = 12;
 
-      // フェアウェイ帯（中心線ポリライン = 実形状）
+      // ═══ アコーディア公式レイアウト図の作法で描く（線ブラッシュアップ） ═══
+      // ラフ=淡黄緑 / フェアウェイ=鮮緑+斜め刈り目+フリンジ縁 / カート道=灰の帯 / OB=白線 /
+      // 池=飽和青+赤点線PA / バンカー=白抜き / グリーン=黄緑+細縁 / ティー=鮮緑の小矩形
       const pinMX = cx + (this.pinPos ? this.pinPos.x : 0) * sX;
       const pinMY = Math.max(8, teeY + (this.pinPos ? this.pinPos.z : -this.terrainH * 0.97) * sZ);
       const teeMX = cx + (this.teePos ? this.teePos.x : 0) * sX;
       const cl = (this._centerline && this._centerline.length > 1) ? this._centerline : [{x:0, z:0}, {x:0, z:-this.terrainH * 0.97}];
-      ctx.strokeStyle = "#2a7a1a";
-      ctx.lineWidth = Math.max(9, 34 * sX);
+      const fwW = Math.max(9, 34 * sX), fwH = fwW / 2;
+      const cps = cl.map(pt => ({ x: cx + pt.x * sX, y: teeY + pt.z * sZ }));
+      const offs = (d) => cps.map((p, i) => {
+        const a = cps[Math.max(0, i - 1)], b = cps[Math.min(cps.length - 1, i + 1)];
+        let dx = b.x - a.x, dy = b.y - a.y; const ln = Math.hypot(dx, dy) || 1;
+        return { x: p.x - (dy / ln) * d, y: p.y + (dx / ln) * d };
+      });
+      const smoothLine = (pts) => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length - 1; i++) {
+          ctx.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
+        }
+        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      };
+      const bandPath = (half) => {
+        const L = offs(half), R = offs(-half);
+        const p = new Path2D();
+        p.moveTo(L[0].x, L[0].y);
+        for (let i = 1; i < L.length - 1; i++) p.quadraticCurveTo(L[i].x, L[i].y, (L[i].x + L[i + 1].x) / 2, (L[i].y + L[i + 1].y) / 2);
+        p.lineTo(L[L.length - 1].x, L[L.length - 1].y);
+        for (let i = R.length - 1; i > 0; i--) p.quadraticCurveTo(R[i].x, R[i].y, (R[i].x + R[i - 1].x) / 2, (R[i].y + R[i - 1].y) / 2);
+        p.lineTo(R[0].x, R[0].y);
+        p.closePath();
+        p.moveTo(cps[0].x + half, cps[0].y); p.arc(cps[0].x, cps[0].y, half, 0, Math.PI * 2);
+        const e = cps[cps.length - 1];
+        p.moveTo(e.x + half, e.y); p.arc(e.x, e.y, half, 0, Math.PI * 2);
+        return p;
+      };
+      const rrPath = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      };
       ctx.lineJoin = "round"; ctx.lineCap = "round";
-      ctx.beginPath();
-      cl.forEach((pt, i) => { const mx = cx + pt.x * sX, my = teeY + pt.z * sZ; if(i === 0) ctx.moveTo(mx, my); else ctx.lineTo(mx, my); });
-      ctx.stroke();
-      ctx.strokeStyle = "#388a24";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      cl.forEach((pt, i) => { const mx = cx + pt.x * sX, my = teeY + pt.z * sZ; if(i === 0) ctx.moveTo(mx, my); else ctx.lineTo(mx, my); });
-      ctx.stroke();
 
-      // グリーン
-      ctx.fillStyle = "#00cc44";
-      ctx.beginPath();
-      ctx.arc(pinMX, pinMY, 7.5, 0, Math.PI*2);
-      ctx.fill();
+      // OBライン（白・両サイド）
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.6;
+      smoothLine(offs(fwH + 6)); ctx.stroke();
+      smoothLine(offs(-fwH - 6)); ctx.stroke();
 
-      // ピンマーカー
-      ctx.fillStyle = "#ff2222";
+      // カート道（灰の帯・左サイド）
+      smoothLine(offs(-fwH - 3.4));
+      ctx.strokeStyle = "#878d91"; ctx.lineWidth = 2.6; ctx.stroke();
+      ctx.strokeStyle = "#c9ced3"; ctx.lineWidth = 1.5; ctx.stroke();
+
+      // フェアウェイ（柔らかい影 → フリンジ → 鮮緑+斜め刈り目）
+      ctx.save();
+      ctx.translate(1.2, 1.8);
+      ctx.fillStyle = "rgba(70,100,25,0.25)";
+      ctx.fill(bandPath(fwH + 2.5));
+      ctx.restore();
+      ctx.fillStyle = "#93cf55";
+      ctx.fill(bandPath(fwH + 2.5));
+      ctx.fillStyle = "#57b52b";
+      ctx.fill(bandPath(fwH));
+      ctx.save();
+      ctx.clip(bandPath(fwH));
+      for (let s = -H, k = 0; s < W + H; s += 7, k++) {
+        ctx.strokeStyle = (k % 2 === 0) ? "rgba(255,255,255,0.13)" : "rgba(18,92,12,0.13)";
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(s, 0);
+        ctx.lineTo(s + H * 0.55, H);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 池・クリーク（飽和青 + 赤点線PA）
+      const wbs = (typeof window !== "undefined" && window._waterBoxes) ? window._waterBoxes : [];
+      for (const wb of wbs) {
+        const x0 = Math.max(1, cx + wb.minX * sX), x1 = Math.min(W - 1, cx + wb.maxX * sX);
+        const y0 = Math.max(1, teeY + wb.minZ * sZ), y1 = Math.min(H - 1, teeY + wb.maxZ * sZ);
+        if (x1 - x0 < 2 || y1 - y0 < 2) continue;
+        ctx.fillStyle = "#2f7fe0";
+        rrPath(x0, y0, x1 - x0, y1 - y0, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#e23b3b";
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([2.5, 2.5]);
+        rrPath(x0 - 1.5, y0 - 1.5, (x1 - x0) + 3, (y1 - y0) + 3, 4);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // バンカー（白抜き+細い土縁）
+      const bzs = (this._bunkerZones && this._bunkerZones.length) ? this._bunkerZones : ((typeof window !== "undefined" && window._bunkerZones) ? window._bunkerZones : []);
+      const seenBz = new Set();
+      for (const bz of bzs) {
+        const bx2 = cx + bz.x * sX, by2 = teeY + bz.z * sZ;
+        const key = Math.round(bx2) + "," + Math.round(by2);
+        if (seenBz.has(key)) continue;
+        seenBz.add(key);
+        const rx = Math.max(2.4, (bz.r || 5) * sX), ry = Math.max(2.4, (bz.r || 5) * sZ);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(bx2, by2, rx, ry, 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(196,158,102,0.95)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      // グリーン（黄緑+細縁+エプロン）
+      ctx.fillStyle = "#a8d95a";
       ctx.beginPath();
-      ctx.arc(pinMX, pinMY, 3.5, 0, Math.PI*2);
+      ctx.arc(pinMX, pinMY, 9.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#fff";
+      ctx.fillStyle = "#c2e650";
+      ctx.beginPath();
+      ctx.arc(pinMX, pinMY, 7.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#77b01e";
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // ティー（手前下側）
+      // ピンフラッグ（白ポール+赤旗）
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pinMX + 0.5, pinMY + 0.5);
+      ctx.lineTo(pinMX + 0.5, pinMY - 5.5);
+      ctx.stroke();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(pinMX, pinMY);
+      ctx.lineTo(pinMX, pinMY - 6);
+      ctx.stroke();
+      ctx.fillStyle = "#e5322d";
+      ctx.beginPath();
+      ctx.moveTo(pinMX, pinMY - 6);
+      ctx.lineTo(pinMX + 4.6, pinMY - 4.3);
+      ctx.lineTo(pinMX, pinMY - 2.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(pinMX, pinMY, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ティー（鮮緑の小矩形+IN/OUT色ドット）
+      ctx.fillStyle = "#35c94a";
+      rrPath(teeMX - 5, teeY - 3, 10, 6, 1.5);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
       ctx.fillStyle = (curHole && curHole.isIN) ? "#ee3333" : "#4488ff";
       ctx.beginPath();
-      ctx.arc(teeMX, teeY, 3.5, 0, Math.PI*2);
+      ctx.arc(teeMX, teeY, 1.6, 0, Math.PI * 2);
       ctx.fill();
 
       // ボール
@@ -5386,7 +5604,7 @@ return;
         if(this.ball.inFlight && this.ball.phase === "carry"){
           const sy = Math.max(6, Math.min(teeY, teeY + this.ball.carryStartPos.z * sZ));
           const sx = cx + this.ball.carryStartPos.x * sX;
-          ctx.strokeStyle = "rgba(255,255,100,0.55)";
+          ctx.strokeStyle = "rgba(255,140,26,0.85)";
           ctx.lineWidth = 1.5;
           ctx.setLineDash([3, 3]);
           ctx.beginPath();
@@ -5410,6 +5628,12 @@ return;
           const len = 12;
           const ex = bx + Math.sin(rad) * len;
           const ey = by - Math.cos(rad) * len;
+          ctx.strokeStyle = "rgba(90,60,0,0.5)";
+          ctx.lineWidth = 3.2;
+          ctx.beginPath();
+          ctx.moveTo(bx, by);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
           ctx.strokeStyle = this.gameMode === "putt" ? "#00ffdd" : "#ffd700";
           ctx.lineWidth = 1.8;
           ctx.beginPath();
@@ -5426,26 +5650,29 @@ return;
 
     // ─── 共通オーバーレイ（ホール番号・風向） ───
     ctx.font = "bold 9px 'Orbitron',monospace";
-    ctx.fillStyle = "rgba(255,215,0,0.95)";
+    ctx.shadowColor = "rgba(255,255,255,0.9)";
+    ctx.shadowBlur = 3;
+    ctx.fillStyle = "#17530f";
     ctx.textAlign = "left";
     ctx.fillText("H" + (this.currentHoleIdx + 1), 4, 12);
 
     ctx.font = "8px monospace";
-    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.fillStyle = "rgba(23,83,15,0.9)";
     ctx.textAlign = "left";
     ctx.fillText(Math.round(this.terrainH) + "yd", 4, H - 3);
+    ctx.shadowBlur = 0;
 
     // 風向インジケータ（右上）
     if(this.weather){
       const wr = this.weather.windDirection * Math.PI / 180;
       const ws = Math.min(this.weather.windStrength, 15) / 15;
       const wx = W - 12, wy = 12;
-      ctx.strokeStyle = "rgba(100,200,255,0.7)";
+      ctx.strokeStyle = "rgba(21,84,130,0.75)";
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(wx, wy, 8, 0, Math.PI*2);
       ctx.stroke();
-      ctx.strokeStyle = "#88ccff";
+      ctx.strokeStyle = "#1565a8";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(wx, wy);
@@ -6251,8 +6478,8 @@ return;
     if(!this._ctxListenerBound){
       this._ctxListenerBound = true;
       const canvasEl=document.getElementById("canvas");
-      canvasEl.addEventListener("webglcontextlost",e=>{e.preventDefault();console.warn("WebGL context lost");},{passive:true});
-      canvasEl.addEventListener("webglcontextrestored",()=>{console.warn("WebGL context restored");},{passive:true});
+      canvasEl.addEventListener("webglcontextlost",e=>{e.preventDefault();console.warn("WebGL context lost");try{ if(window.__GOAT_DIAG__ && window.__GOAT_DIAG__.ctx) window.__GOAT_DIAG__.ctx.lost = true; }catch(_){}},{passive:true});
+      canvasEl.addEventListener("webglcontextrestored",()=>{console.warn("WebGL context restored");try{ if(window.__GOAT_DIAG__ && window.__GOAT_DIAG__.ctx) window.__GOAT_DIAG__.ctx.lost = false; }catch(_){}},{passive:true});
     }
 
     // shotUIの実際の高さをCSS変数に反映（全フローティングパネルの基準）
@@ -6274,6 +6501,7 @@ return;
     if(this._loopRunning) return;
     this._loopRunning = true;
 
+    let _ctxCheckFrame = 0; /* v4.10 A1: コンテキストロスト実体チェックの間引き用カウンタ（120フレームに1回） */
     const loop=()=>{
       requestAnimationFrame(loop);
       try{
@@ -6365,12 +6593,20 @@ return;
         this._updateDistPanel();
         this._updateFlightBar();
         this._drawMiniMap();this._updateCompass();this._updateAimAngleDisplay();
+        /* v4.10 A1: 毎フレームの実体チェックを廃止。リスナーが立てるフラグを参照し、120フレームに1回だけ
+           実体チェック（安全網）でフラグを更新する。ロスト中は描画せず復旧したら再開、の意味は従来どおり。 */
         var _ctxLost = false;
-        try { var _gc = this.renderer.getContext(); _ctxLost = !!(_gc && typeof _gc.isContextLost === "function" && _gc.isContextLost()); } catch(e) {}
+        _ctxCheckFrame++;
+        var _diagCtx = (window.__GOAT_DIAG__ && window.__GOAT_DIAG__.ctx) || null;
+        if(_diagCtx && _diagCtx.lost){ _ctxLost = true; }
+        if((_ctxCheckFrame % 120) === 0){
+          try { var _gc = this.renderer.getContext(); var _lostNow = !!(_gc && typeof _gc.isContextLost === "function" && _gc.isContextLost()); if(_diagCtx){ _diagCtx.lost = _lostNow; _diagCtx.checks = (_diagCtx.checks || 0) + 1; _diagCtx.lastCheckAt = Date.now(); } _ctxLost = _lostNow; } catch(e) {}
+        }
         if(!_ctxLost){
           this.renderer.render(this.scene,this.camera);
         }
-      }catch(e){console.warn("Loop error:",e);}
+        window.__goatDiagLoopOk("golfLoop");
+      }catch(e){console.warn("Loop error:",e);window.__goatDiagLoopErr("golfLoop", e);}
     };
     loop();
   }
@@ -6732,7 +6968,7 @@ document.addEventListener('DOMContentLoaded', function () {
         pmrem.dispose();
       }
       if(this._cachedEnvMap) this.scene.environment = this._cachedEnvMap;
-    } catch(e){}
+    } catch(e){ window.__goatDiagFail("sky", "_buildSky", e); }
   };
 })();
 

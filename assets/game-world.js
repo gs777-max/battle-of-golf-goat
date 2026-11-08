@@ -1,10 +1,26 @@
 
   /* ===== v4.3 HQアセット (読込失敗時は従来表示に自動フォールバック) ===== */
   window.HQW = { parts:null, pending:[], tex:{}, _ready:{}, _waiters:{} };
+  /* v4.10 A2: 診断記録（記録のみ・挙動変更なし）。window.__GOAT_DIAG__ に集約し最終エラーのみ保持する。
+     golf 文書と同一構造にし、プローブから両文書で同じキーで読めるようにする。 */
+  window.__GOAT_DIAG__ = window.__GOAT_DIAG__ || {};
+  (function(D){
+    D.ctx = D.ctx || { lost:false, checks:0, lastCheckAt:0 };
+    D.golfLoop = D.golfLoop || { consecErrors:0, lastError:null, lastErrorAt:0 };
+    D.worldAnimate = D.worldAnimate || { consecErrors:0, lastError:null, lastErrorAt:0 };
+    D.hq = D.hq || {};
+    D.hq.player = D.hq.player || { failed:false, error:null, detail:null, at:0 };
+    D.hq.courseDress = D.hq.courseDress || { failed:false, error:null, detail:null, at:0 };
+    D.hq.sky = D.hq.sky || { failed:false, error:null, detail:null, at:0 };
+    D.ibl = D.ibl || { failed:false, error:null, detail:null, at:0 };
+  })(window.__GOAT_DIAG__);
+  window.__goatDiagFail = function(slot, detail, e){ try{ var D = window.__GOAT_DIAG__; if(!D) return; var s = (slot === "ibl") ? D.ibl : (D.hq && D.hq[slot]); if(!s) return; s.failed = true; s.detail = detail; s.error = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.at = Date.now(); }catch(_){} };
+  window.__goatDiagLoopErr = function(slot, e){ try{ var D = window.__GOAT_DIAG__; if(!D || !D[slot]) return; var s = D[slot]; s.consecErrors = (s.consecErrors || 0) + 1; s.lastError = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.lastErrorAt = Date.now(); }catch(_){} };
+  window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(D && D[slot]) D[slot].consecErrors = 0; }catch(_){} };
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.9');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.11');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -41,9 +57,39 @@ loadTex('head_' + ck, 1); loadTex('skin_' + ck, 1);})();
     loadTex('bark_map', 1); loadTex('bark_nrm');
  /* v4.9: GLB を「共通ベース＋キャラ別ヘッド」に分割。主人公のヘッドだけを追加ロードし、
 残影（charId なし）はベースのみで適用する。パーツ名・マテリアル名・中身は従来と同一（画質不変）。
-ベース/ヘッドとも読込失敗時は最大3回まで再試行し（r180版修正の恒常化対策を継承）、
-ベースの最終失敗時は HQ 適用自体を行わず、ヘッドの最終失敗時は汎用ヘッドで進める。 */
+iOS Safari では (a) MeshoptDecoder の WASM 初期化が遅れて supported=false の
+まま GLB を読むと GLTFLoader が例外を投げ、(b) GLB 内蔵テクスチャの createImageBitmap デコードが
+失敗すると GLB 読込全体が失敗する。従来は再試行が最大3回で打ち切られ、ベースは仮モデルのまま
+固定、ヘッドは「最終失敗」として汎用ヘッドで適用されていた（実機でロボット風に見える状態）。
+対策: ① デコーダ ready ゲート（supported になるまで読込を開始しない）
+② 再試行は打ち切らず、createImageBitmap 無効経路（TextureLoader）と交互に試す
+③ 適用ヘッド種別と失敗理由を _appliedHead / _diag に記録する */
 window.HQW._pBase = false; window.HQW._pHead = {};
+window.HQW._diag = { baseFails: 0, headFails: {}, lastErr: '', decoderWaited: false};
+window.HQW._noteErr = function(where, e){
+try{ window.HQW._diag.lastErr = where + ': ' + String((e && e.message) || e || 'load error').slice(0, 140);}catch(_){}
+};
+window.HQW._decoderReady = function(cb){
+var d = window.MeshoptDecoder;
+if(!d || d.supported){ cb(); return;}
+window.HQW._diag.decoderWaited = true;
+var iv = setInterval(function(){
+if(!window.MeshoptDecoder || window.MeshoptDecoder.supported){ clearInterval(iv); cb();}
+}, 200);
+};
+var _bmDepthW = 0, _bmSavedW = null;
+function _bmOffW(){ if(_bmDepthW === 0){ _bmSavedW = window.createImageBitmap; try{ window.createImageBitmap = undefined;}catch(e){}} _bmDepthW++;}
+function _bmOnW(){ _bmDepthW--; if(_bmDepthW <= 0){ _bmDepthW = 0; try{ window.createImageBitmap = _bmSavedW;}catch(e){}}}
+window.HQW._glbLoad = function(url, noBitmap, onOk, onFail){
+window.HQW._decoderReady(function(){
+try{
+var loader = new THREE.GLTFLoader();
+if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+if(noBitmap) _bmOffW();
+loader.load(url, function(g){ if(noBitmap) _bmOnW(); onOk(g);}, undefined, function(err){ if(noBitmap) _bmOnW(); onFail(err);});
+}catch(e){ if(noBitmap) _bmOnW(); onFail(e);}
+});
+};
 window.HQW._keyOf = function(ctx){
 var k = ctx && ctx.charId? String(ctx.charId).toLowerCase(): null;
 return (k && ['watu','matuya','tiiger','junbo','mcilro','decham'].indexOf(k)!== -1)? k: null;
@@ -52,7 +98,8 @@ window.HQW._readyFor = function(key){
 if(!window.HQW._pBase ||!window.HQW.parts) return false;
 if(!key || key === 'watu') return true;
 var s = window.HQW._pHead[key];
-return s === 'ok' || s === 'err';
+/* 堅牢化: ヘッド未着のまま汎用ヘッドで適用を進めることはしない */
+return s === 'ok';
 };
 window.HQW._flushPending = function(){
 if(!window.HQW._pBase) return;
@@ -67,39 +114,37 @@ var roots = 0;
 gltf.scene.children.forEach(function(root){ if(root && root.name){ (window.HQW.parts = window.HQW.parts || {})[root.name] = root; roots++;}});
 return roots >= minRoots;
 }
-window.HQW._baseFail = function(){
+window.HQW._baseFail = function(err){
 window.HQW._fails = (window.HQW._fails || 0) + 1;
-if(window.HQW._fails <= 3){ setTimeout(function(){ window.HQW._loadBase();}, 2500);}
+window.HQW._diag.baseFails = window.HQW._fails;
+window.HQW._noteErr('base', err);
+/* 堅牢化: 打ち切らず再試行し続ける（バックオフ上限10秒）。
+奇数回目の試行は createImageBitmap を無効化した経路で読む（iOS のデコード失敗対策） */
+var delay = Math.min(2500 * Math.ceil(window.HQW._fails / 2), 10000);
+setTimeout(function(){ window.HQW._loadBase();}, delay);
 };
 window.HQW._loadBase = function(){
-try{
-var loader = new THREE.GLTFLoader();
-if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-loader.load('assets/models/hero_world_base.glb' + AVQ, function(gltf){
-if(!mergePartsW(gltf, 10)){ window.HQW._baseFail(); return;}
+var noBitmap = ((window.HQW._fails || 0) % 2) === 1;
+window.HQW._glbLoad('assets/models/hero_world_base.glb' + AVQ, noBitmap, function(gltf){
+if(!mergePartsW(gltf, 10)){ window.HQW._baseFail(new Error('base roots < 10')); return;}
 window.HQW._pBase = true;
 window.HQW._flushPending();
-}, undefined, function(){ window.HQW._baseFail();});
-}catch(e){ window.HQW._baseFail();}
+}, function(err){ window.HQW._baseFail(err);});
 };
 window.HQW._loadHead = function(key){
-try{
-var hl = new THREE.GLTFLoader();
-if(window.MeshoptDecoder) hl.setMeshoptDecoder(window.MeshoptDecoder);
-hl.load('assets/models/hero_world_head_' + key + '.glb' + AVQ, function(gltf){
+var f = window.HQW._pHead[key + '_f'] || 0;
+window.HQW._glbLoad('assets/models/hero_world_head_' + key + '.glb' + AVQ, (f % 2) === 1, function(gltf){
 mergePartsW(gltf, 1);
 window.HQW._pHead[key] = 'ok';
 window.HQW._flushPending();
-}, undefined, function(){
-var f = window.HQW._pHead[key + '_f'] = (window.HQW._pHead[key + '_f'] || 0) + 1;
-if(f <= 3){ setTimeout(function(){ window.HQW._loadHead(key);}, 2500);}
-else { window.HQW._pHead[key] = 'err'; window.HQW._flushPending();}
+}, function(err){
+var nf = window.HQW._pHead[key + '_f'] = f + 1;
+window.HQW._diag.headFails[key] = nf;
+window.HQW._noteErr('head_' + key, err);
+/* 堅牢化: 'err'（汎用ヘッドで進める）には落とさず、成功するまで再試行する */
+var delay = Math.min(2500 * Math.ceil(nf / 2), 10000);
+setTimeout(function(){ window.HQW._loadHead(key);}, delay);
 });
-}catch(e){
-var f2 = window.HQW._pHead[key + '_f'] = (window.HQW._pHead[key + '_f'] || 0) + 1;
-if(f2 <= 3){ setTimeout(function(){ window.HQW._loadHead(key);}, 2500);}
-else { window.HQW._pHead[key] = 'err'; window.HQW._flushPending();}
-}
 };
 window.HQW.loadParts = function(charKey){
 try{
@@ -163,7 +208,10 @@ else { window.HQW.pending.push([g, ctx]); window.HQW.loadParts(key);}
       }
       put('pelvis', J.hips); put('belt', J.hips); hideBody(J.hips);
       put('torso', ctx.torso); ctx.torso.material = INV; hideBody(J.torso);
-      (put('head_' + (_vk || 'watu'), J.head) || put('head', J.head)); put('earL', J.head); put('earR', J.head); put('nose', J.head);
+      var _hpUsed = put('head_' + (_vk || 'watu'), J.head);
+var _hpKind = _hpUsed ? ((_vk && window.HQW.parts['head_' + _vk]) ? _vk : 'watu-base') : (put('head', J.head) ? 'generic' : 'none');
+if(_vk) window.HQW._appliedHead = _hpKind; else window.HQW._appliedMobHead = _hpKind;
+put('earL', J.head); put('earR', J.head); put('nose', J.head);
       if(ctx.hatType === 'cap'){ put('cap', J.head); put('cap_brim', J.head); put('cap_logo', J.head); }
       else if(ctx.hatType === 'visor'){ put('cap_brim', J.head); }
       else if(ctx.hatType === 'straw'){ put('straw', J.head); put('straw_top', J.head); }
@@ -412,7 +460,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
         var rt = pmrem.fromScene(envScene, 0.04);
         scene.environment = rt.texture;
         pmrem.dispose();
-      } catch (e) { }
+      } catch (e) { window.__goatDiagFail("ibl", "buildIBL", e); }
     })();
 
     /* プロシージャル高精細PBRテクスチャ生成（芝ストライプ・石垣・大理石・バンカー砂） */
@@ -3146,13 +3194,16 @@ scene.remove(m.mesh);
 
     function animate() {
       requestAnimationFrame(animate);
+      try{ /* v4.10 A2: フレーム本体を包み失敗を記録するだけ。例外時は従来どおり後続を実行せず抜ける（RAFは冒頭で予約済みのため継続する） */
       var dt = Math.min(0.05, clock.getDelta());
       if (STATE.paused || document.hidden) {
+        window.__goatDiagLoopOk("worldAnimate");
         return; /* v4.5: 対戦中・非表示中は描画自体を止め、GPU/帯域を対戦側へ譲る（状態は保持され復帰は即時） */
       }
       if (hitstopTimer > 0) {
         hitstopTimer -= dt;
         renderer.render(scene, camera);
+        window.__goatDiagLoopOk("worldAnimate");
         return;
       }
 
@@ -3611,6 +3662,8 @@ scene.remove(m.mesh);
       renderGauges(elapsed);
       renderMinimap();
       renderer.render(scene, camera);
+      window.__goatDiagLoopOk("worldAnimate");
+      }catch(e){ window.__goatDiagLoopErr("worldAnimate", e); }
     }
 
     function checkSubTrialCrystalHit(x, y, z, hitR) {

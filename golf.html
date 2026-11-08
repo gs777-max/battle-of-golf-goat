@@ -5,19 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.9 | WebGL版</title>
+<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.11 | WebGL版</title>
 
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.9",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.9",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.9",
+ "three": "./assets/lib/r180/three.module.js?v=4.11",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.11",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.11",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.9",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.9"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.11",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.11"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.9"></script>
+<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.11"></script>
 </head>
 <body>
 
@@ -700,7 +700,8 @@ html,body{width:100%;height:100%;min-height:-webkit-fill-available;overflow:hidd
   z-index:11;
 }
 
-#miniMap{position:absolute;bottom:var(--sui-h,290px);right:0;width:90px;height:90px;background:rgba(0,10,24,0.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.15);border-radius:8px 0 0 8px;overflow:hidden;}
+#miniMap{position:absolute;bottom:var(--sui-h,290px);right:0;width:90px;height:90px;background:rgba(0,10,24,0.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1px solid rgba(255,216,117,0.55);border-radius:8px 0 0 8px;overflow:hidden;}
+#miniMapCanvas{width:100%;height:100%;display:block;}
 #puttLineHint{position:absolute;bottom:var(--sui-h,290px);left:50%;transform:translateX(-50%);background:rgba(0,50,80,0.9);border:1px solid var(--putt);border-radius:8px;padding:3px 12px;font-size:0.62rem;color:var(--putt);pointer-events:none;display:none;text-align:center;white-space:nowrap;}
 #slopeLegend{position:absolute;bottom:var(--sui-h,290px);right:95px;background:rgba(0,0,0,0.75);border-radius:6px;padding:3px 7px;font-size:0.52rem;pointer-events:none;display:none;text-align:left;line-height:1.6;}
 #keyHint{position:absolute;bottom:var(--sui-h,290px);left:0;background:rgba(0,0,0,0.55);border-radius:0 7px 7px 0;padding:3px 8px;font-size:0.5rem;color:#7ab;pointer-events:none;white-space:nowrap;display:none;}
@@ -1799,9 +1800,70 @@ html,body{width:100%;height:100%;min-height:-webkit-fill-available;overflow:hidd
 .course-btn{ font-family:"Noto Serif JP",serif; border:1px solid rgba(255,216,117,.3) !important; background:rgba(10,13,30,.92) !important; color:#e9e2cf !important; }
 .course-btn.selected{ border-color:#ffd875 !important; color:#ffd875 !important; box-shadow:0 0 12px rgba(255,216,117,.3); }
 
+/* ===== v4.9プレビュー ②③: 対戦画面下部の左右入れ替え＋SHOTを高く（スマホのみ） =====
+   #shotUI は flex row のため DOM は動かさず order で並べ替える。
+   左端=弾道/CAM/SC(#rightControls) / 中央=#centerControls / 右端=クラブ+PIN(#leftControls)。
+   SHOT 32px→42px の +10px は #powerRow 26px→16px で吸収し、中央カラム総高(62px)と
+   #shotUI 全高(--sui-h:74px)は不変。メーター/パットラップは row 内中央寄せ＋カラム自体も
+   中央寄せのため、row 高を変えても絶対位置は動かない。パット時の PUTT ボタンは対象外。 */
+@media (max-width: 640px) {
+  #rightControls { order: 1; }
+  #centerControls { order: 2; }
+  #leftControls { order: 3; }
+  #centerControls #powerRow { height: 16px; }
+  #centerControls #shootBtn:not(.putt-mode) { height: 42px; }
+}
+
 </style>
 
 
 
+
+<style>
+/* ===== v4.11 本番反映: パット重なり パターン2「パラメータ圧縮型」 × 境目 パターンN2「浮いたカード」合成 ===== */
+/* ===== v4.9プレビュー続編3 パターンN2「浮いたカード」(スマホ・パット時のみ) =====
+   バーを操作バーの帯から切り離し、左右に余白を持つ独立した浮遊カードにする。
+   左右 6px→12px に内寄せし、四方の角丸を 16px に、金の枠を少し強め、
+   背景をほぼ不透明にし、落影 (0 12px 26px -10px) で浮遊感を出す。
+   あわせてバーを軽く圧縮 (パディング 4→2、gap 2→1、#goatBattleLeft 36→30px)
+   して上端を下げ、ボタンのグローも到達 約5px に絞ることで、
+   カード上端とボタンの間に背景だけの帯を残す。
+   フォント・文字・中身の配置は不変。ティー時は対象外。 */
+@media (max-width: 640px) {
+  body:has(#shootBtn.putt-mode) #goatInfoBar {
+    left: 12px !important;
+    right: 12px !important;
+    border-radius: 16px !important;
+    border-color: rgba(255, 216, 117, 0.55) !important;
+    background: linear-gradient(165deg, rgba(12, 16, 34, 0.97), rgba(7, 9, 20, 0.98)) !important;
+    box-shadow: 0 12px 26px -10px rgba(0, 0, 0, 0.6) !important;
+    padding: 2px 10px !important;
+    gap: 1px !important;
+  }
+  body:has(#shootBtn.putt-mode) #goatInfoBar #goatBattleLeft { height: 30px !important; gap: 5px !important; }
+  body:has(#shootBtn.putt-mode) #goatInfoBar #goatBattleLeft button { flex-basis: 138px !important; }
+  body:has(#shootBtn.putt-mode) #centerControls #shootBtn {
+    box-shadow: 0 0 9px -4px rgba(0, 230, 77, 0.55) !important;
+  }
+}
+/* ===== v4.9プレビュー続編 パターン2「パラメータ圧縮型」v2 (スマホ・パット時のみ) =====
+   バーの高さは 74px のまま。パラメータの帯を3段→2段に圧縮する:
+   「タップでパット開始」ヒントを、傾斜ピルと同じ段の左隣へ寄せて1段にまとめ、
+   距離の段は距離とPINラベルだけにする。メーター一式(トラック+スケール行)は
+   独立した塊として上へ寄せ、スケール行をトラック下の独立行にして
+   PUTT ボタンとの間に隙間を作る。フォントは現行不変。 */
+@media (max-width: 640px) {
+  body:has(#shootBtn.putt-mode) #centerControls #puttMeterWrap {
+    height: 55px; transform: translateY(-18px);
+  }
+  body:has(#shootBtn.putt-mode) #puttScaleRow {
+    position: static; height: 13px; margin-top: 2px; align-items: flex-start;
+  }
+  /* ヒントをピルの段の左隣へ (valueRow 基準: 左端を画面端寄り x=8 へ) */
+  body:has(#shootBtn.putt-mode) #puttZoneHint { left: -54px !important; top: -30px !important; }
+  body:has(#shootBtn.putt-mode) #puttTargetPinMarker { top: 0; bottom: 0; }
+}
+
+</style>
 </body>
 </html>
