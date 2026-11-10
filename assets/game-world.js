@@ -20,7 +20,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.15');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.16');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -2431,6 +2431,31 @@ scene.remove(m.mesh);
       FX_LIST.push({ mesh: hex, age: 0, dur: 0.55, kind: "expand_hex" });
     }
 
+    /* v4.16: 攻撃時の自動補正（パターン2・自動補正型）。
+       発射の瞬間、プレイヤーの前方 ±60° の扇範囲内かつ検出圏内（クラブ射程の1.5倍）に
+       未浄化の残影がいれば、一番近い残影の方向へ撃ち直す。キャラの向き自体は
+       aimTurn で短時間（0.14秒）かけて回して追随させ、瞬間移動的な snap にしない。
+       範囲内に敵がいない場合は従来どおり現在の向きへ真っ直ぐ撃つ（挙動不変）。
+       操作方法・ダメージ等の数値は一切変更しない。 */
+    var AIM_CONE_COS = 0.5; /* cos(60°): 前方±60° を補正範囲とする */
+    var aimTurn = null; /* {from,to,t,dur} 向き直りの回転アニメーション状態 */
+    function findAutoAimTarget(club) {
+      var fx = Math.sin(player.rotY), fz = Math.cos(player.rotY);
+      var detectR = club.range * 1.5;
+      var best = null, bestD = Infinity;
+      for (var i = 0; i < MOBS.length; i++) {
+        var m = MOBS[i];
+        if (m.purified) continue;
+        var dx = m.x - player.x, dz = m.z - player.z;
+        var d = Math.hypot(dx, dz);
+        if (d < 0.5 || d > detectR) continue;
+        var dot = (dx / d) * fx + (dz / d) * fz;
+        if (dot < AIM_CONE_COS - 1e-9) continue;
+        if (d < bestD) { bestD = d; best = { mob: m, ang: Math.atan2(dx, dz) }; }
+      }
+      return best;
+    }
+
     /* 四神波動ショット発射！ */
     function fireWaveShot(chargeSec) {
       var gs = STATE.gearStats || {};
@@ -2449,7 +2474,14 @@ scene.remove(m.mesh);
       var lv = chargeSec >= 1.28 ? 3 : (chargeSec >= 0.58 ? 2 : 1);
       var mult = lv === 3 ? 2.15 : (lv === 2 ? 1.48 : 1.0);
       var club = FOUR_GOD_CLUBS[STATE.clubIdx];
-      var dirX = Math.sin(player.rotY), dirZ = Math.cos(player.rotY);
+      /* v4.16: 自動補正 — 範囲内に残影がいれば一番近い残影の方向を撃ち方向にし、
+         キャラの向きは aimTurn（短時間回転）でその方向へ追随させる */
+      var aimTarget = findAutoAimTarget(club);
+      var shotAng = aimTarget ? aimTarget.ang : player.rotY;
+      if (aimTarget) {
+        aimTurn = { from: player.rotY, to: shotAng, t: 0, dur: 0.14 };
+      }
+      var dirX = Math.sin(shotAng), dirZ = Math.cos(shotAng);
       var startX = player.x + dirX * 0.9, startZ = player.z + dirZ * 0.9;
       var startY = terrainY(startX, startZ) + 1.05;
 
@@ -2480,7 +2512,7 @@ scene.remove(m.mesh);
         PROJECTILES.push({
           club: 0, lv: lv, mesh: grp, x: startX, y: startY, z: startZ,
           vx: dirX * club.speed, vy: 0, vz: dirZ * club.speed,
-          rotY: player.rotY, dist: 0, maxDist: club.range * (0.85 + lv * 0.22),
+          rotY: shotAng, dist: 0, maxDist: club.range * (0.85 + lv * 0.22),
           dmg: dmg, isCrit: isCrit, pierce: true, hitMap: {}, color: col, stepAcc: 0
         });
       }
@@ -2490,7 +2522,7 @@ scene.remove(m.mesh);
         var featherCnt = lv === 3 ? 7 : (lv === 2 ? 5 : 3);
         for (var f = 0; f < featherCnt; f++) {
           var spread = (f - (featherCnt - 1) * 0.5) * 0.13;
-          var ang = player.rotY + spread;
+          var ang = shotAng + spread;
           var fMesh = new THREE.Mesh(
             new THREE.ConeGeometry(0.22, 1.15, 6),
             new THREE.MeshBasicMaterial({ color: f % 2 === 0 ? 0xff5e57 : 0xffbe76 })
@@ -2521,7 +2553,7 @@ scene.remove(m.mesh);
         PROJECTILES.push({
           club: 2, lv: lv, mesh: orb, x: startX, y: startY + 0.3, z: startZ,
           vx: dirX * (targetDist / flightT), vy: 11.5 + lv * 2.0, vz: dirZ * (targetDist / flightT),
-          rotY: player.rotY, dist: 0, maxDist: 99, age: 0, flightT: flightT,
+          rotY: shotAng, dist: 0, maxDist: 99, age: 0, flightT: flightT,
           dmg: dmg, isCrit: isCrit, fromBunker: fromBunker, color: 0xffffff
         });
       }
@@ -2537,7 +2569,7 @@ scene.remove(m.mesh);
         PROJECTILES.push({
           club: 3, lv: lv, mesh: disc, x: startX, y: disc.position.y, z: startZ,
           vx: dirX * club.speed, vy: 0, vz: dirZ * club.speed,
-          rotY: player.rotY, dist: 0, maxDist: club.range * (0.9 + lv * 0.25),
+          rotY: shotAng, dist: 0, maxDist: club.range * (0.9 + lv * 0.25),
           dmg: dmg, isCrit: isCrit, pierce: false, hitMap: {}, color: 0x2ed573, stepAcc: 0, stealth: true
         });
       }
@@ -2779,6 +2811,7 @@ scene.remove(m.mesh);
     function startCharge(pId) {
       if (STATE.paused || charging) return;
       ensureAC();
+      aimTurn = null; /* v4.16: 前回の向き直り回転が残っていれば、照準合わせと競合しないよう打ち切る */
       alignAimToCameraOrTarget();
       charging = true;
       chargeTime = 0;
@@ -3514,6 +3547,21 @@ scene.remove(m.mesh);
         if (pLegsIdle && pLegsIdle.length === 2) {
           pLegsIdle[0].rotation.x *= Math.max(0, 1 - dt * 14);
           pLegsIdle[1].rotation.x *= Math.max(0, 1 - dt * 14);
+        }
+      }
+
+      /* v4.16: 自動補正の向き直り（0.14秒の短時間回転で撃ち方向へ追随）。
+         移動で操舵している間はそちらを優先し、回転アニメーションは打ち切る。 */
+      if (aimTurn) {
+        if (curSpd > 0.25) {
+          aimTurn = null;
+        } else {
+          aimTurn.t += dt;
+          var ak = Math.min(1, aimTurn.t / aimTurn.dur);
+          var ae = 1 - Math.pow(1 - ak, 3);
+          var adiff = ((aimTurn.to - aimTurn.from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          player.rotY = aimTurn.from + adiff * ae;
+          if (ak >= 1) { player.rotY = aimTurn.to; aimTurn = null; }
         }
       }
 

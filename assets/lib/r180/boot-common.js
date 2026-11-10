@@ -4,7 +4,7 @@
    construction arguments in world.html / golf.html. */
 /* v4.9: アセット版数トークン。firebase の assets 30日キャッシュに対し、版上げ時は
    この値と HTML 側の ?v= を差し替えることで全アセットを確実に入れ替える（単一の変更点）。 */
-const ASSET_V = '4.15';
+const ASSET_V = '4.16';
 window.__GOAT_AV__ = ASSET_V;
 
 import * as THREE_NS from 'three';

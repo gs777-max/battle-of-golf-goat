@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.15）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.16）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -274,6 +274,40 @@
      自然にスクロールできるようにする。 */
   #titleScr { align-items: flex-start; }
   #titleScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+  /* v4.16: 設定ステップ画面（主人公選択の後）にも同じ安全な中央寄せを適用する */
+  #settingScr { align-items: flex-start; }
+  #settingScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+
+  /* ===== v4.16 設定ステップ: カスタムプルダウン（難易度／飛距離クラス） ===== */
+  .setting-card {
+    margin-top: 16px; text-align: left;
+    border: 2px solid var(--gold); border-radius: 12px; padding: 13px;
+    background: rgba(255,200,60,0.06);
+  }
+  .setting-card .sc-title {
+    font-family: 'Noto Serif JP', serif; font-size: 16px; font-weight: 900; color: var(--gold-bright);
+  }
+  .pdd { position: relative; }
+  .pdd-head {
+    width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border: 2px solid var(--gold); border-radius: 11px; padding: 10px 14px; cursor: pointer;
+    background: rgba(255,200,60,0.10); color: #fff; font-size: 15.5px; font-weight: 800; text-align: left;
+  }
+  .pdd-head.open { border-radius: 11px 11px 0 0; background: rgba(255,200,60,0.17); }
+  .pdd-chev { color: var(--gold-bright); font-size: 13px; flex: none; }
+  .pdd-list {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 60;
+    border: 2px solid var(--gold); border-top: none;
+    border-radius: 0 0 11px 11px; background: #141a30; box-shadow: 0 14px 28px rgba(0,0,0,0.55); overflow: hidden;
+  }
+  .pdd-opt {
+    min-height: 47px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 14px; font-size: 15px; font-weight: 700; color: #e8ecf7; cursor: pointer;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+  .pdd-opt.sel { color: var(--gold-bright); background: rgba(255,200,60,0.12); }
+  .pdd-check { color: var(--gold-bright); flex: none; }
+  .pdd-label { font-size: 12.5px; font-weight: 900; color: var(--cyan); margin: 0 0 6px 2px; }
   .char-swatch {
     width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 8px;
     display: flex; align-items: center; justify-content: center; font-size: 24px;
@@ -400,7 +434,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.15"></script>
+<script src="assets/diag-overlay.js?v=4.16"></script>
 </head>
 <body>
 
@@ -474,7 +508,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.15【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.16【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -496,6 +530,28 @@
     <div class="action-row">
       <button class="bigbtn ghost" id="backTitleBtn">← 戻る</button>
       <button class="bigbtn" id="startBtn">⛩ 京都・天孫降臨の地へ旅立つ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 設定ステップ（主人公選択の後・通常モードのみ）: 難易度＆飛距離クラス ===== -->
+<div class="overlay" id="settingScr" style="display:none">
+  <div class="hero-panel">
+    <div class="myth-eyebrow">FINAL TUNING BEFORE DEPARTURE</div>
+    <div style="font-family:'Noto Serif JP',serif;font-size:26px;font-weight:900;color:var(--gold-bright);">旅立ちの調律 ― 難易度と飛距離</div>
+    <div id="settingHeroLine" style="color:var(--cyan);margin-top:6px;font-size:13px;font-weight:700;"></div>
+    <div class="setting-card">
+      <div class="sc-title">⚙ 初期設定 ― 難易度と飛距離</div>
+      <div class="pdd-label" style="margin-top:11px;">難易度</div>
+      <div id="diffPdd"></div>
+      <div class="pdd-label" style="margin-top:12px;">飛距離クラス</div>
+      <div id="distPdd"></div>
+      <div id="settingDesc" style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.14);padding-top:10px;font-size:12px;line-height:1.65;color:#dfe5f5;text-align:left;"></div>
+      <div style="font-size:11px;color:var(--text-sub);margin-top:10px;line-height:1.6;text-align:left;">※難易度で変わるのはショットメーターだけです（敵の強さ・風・パットは全段階共通）。JUST確率の目安は「ふつうの腕前」で針を止めた場合の計算値です。飛距離は自分の全クラブに同じ比率でかかり、敵の飛距離は変わりません。ギアの補正は今までどおり上乗せされます。</div>
+    </div>
+    <div class="action-row">
+      <button class="bigbtn ghost" id="backCharBtn">← 主人公を選び直す</button>
+      <button class="bigbtn" id="departBtn">⛩ 京都・天孫降臨の地へ旅立つ</button>
     </div>
   </div>
 </div>
@@ -1520,7 +1576,7 @@ function saveSlot(slotIdx, label){
   slots[slotIdx] = {
     label: label || ("スロット " + slotIdx),
     savedAt: new Date().toLocaleString("ja-JP"),
-    summary: S.playerName + "（" + S.mode.toUpperCase() + "）｜" + AREAS[S.area].name + "｜" + rk.title,
+    summary: S.playerName + "（" + S.mode.toUpperCase() + "）｜" + AREAS[S.area].name + "｜" + rk.title + (S.mode === "normal" ? "｜難易度：" + diffDef(stateDifficulty(S)).name + "｜飛距離：" + distClassDef(stateDistClass(S)).name : ""),
     state: JSON.parse(JSON.stringify(S))
   };
   try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots)); } catch(e){}
@@ -1596,6 +1652,45 @@ var S = null;
 var selectedMode = "normal";
 var selectedHeroId = "Watu";
 var pendingNgPlus = false;
+var selectedDifficulty = "normal";
+
+/* 難易度（v4.16）: 変わるのはショットメーター第2段の針速と JUST（UNS）帯の幅だけ。
+   JUST確率は「ふつうの腕前・60fps」で針を止めた場合のシミュレーション値（方式C）。 */
+var DIFFICULTIES = [
+  { id:"super_easy", name:"激イージー", desc:"針はゆっくり、JUST帯は広く。初めてでも気持ちよく当たる入門設定。", just:"JUST確率の目安 約90%" },
+  { id:"easy",       name:"イージー",   desc:"針は少しゆっくり、JUST帯も少し広め。気軽に勝ち進みたい人向け。", just:"JUST確率の目安 約68%" },
+  { id:"normal",     name:"ノーマル",   desc:"従来どおりの標準バランス。設計書どおりの真剣勝負。", just:"JUST確率の目安 約48%" },
+  { id:"hard",       name:"ハード",     desc:"針は速く、JUST帯は狭い。腕に自信のある人向けの修羅設定。", just:"JUST確率の目安 約30%" }
+];
+function diffDef(id){
+  for(var i=0;i<DIFFICULTIES.length;i++){ if(DIFFICULTIES[i].id === id) return DIFFICULTIES[i]; }
+  return DIFFICULTIES[2];
+}
+function stateDifficulty(st){
+  var d = st && st.difficulty;
+  for(var i=0;i<DIFFICULTIES.length;i++){ if(DIFFICULTIES[i].id === d) return d; }
+  return "normal"; /* 難易度項目のない旧セーブはノーマル */
+}
+
+var selectedDistClass = "dracon";
+
+/* 飛距離クラス（v4.16）: 基準は通常モード・素のドライバー最大飛距離（GOD = 現状）。
+   全クラブに同じ倍率がかかり、敵は変わらない。 */
+var DIST_CLASSES = [
+  { id:"amateur",  name:"アマチュア",   yd:200, desc:"コースが広く感じられる、ゆったりした飛距離感。" },
+  { id:"top_pro",  name:"トッププロ",   yd:250, desc:"上級アマ〜プロ入門の飛距離感。" },
+  { id:"tour_pro", name:"ツアープロ",   yd:300, desc:"ツアープロ並みの飛距離感。" },
+  { id:"dracon",   name:"GOD", yd:350, desc:"現状の飛距離そのまま。ロングドライブプロ級の豪快な飛距離感。" }
+];
+function distClassDef(id){
+  for(var i=0;i<DIST_CLASSES.length;i++){ if(DIST_CLASSES[i].id === id) return DIST_CLASSES[i]; }
+  return DIST_CLASSES[3];
+}
+function stateDistClass(st){
+  var d = st && st.distClass;
+  for(var i=0;i<DIST_CLASSES.length;i++){ if(DIST_CLASSES[i].id === d) return d; }
+  return "dracon"; /* 飛距離クラス項目のない旧セーブはGOD（従来挙動） */
+}
 
 function createInitialState(mode, heroId, customName, isNgPlus){
   var isGoat = (mode === "goat");
@@ -1648,6 +1743,8 @@ function createInitialState(mode, heroId, customName, isNgPlus){
   var st = {
     version: 3,
     mode: mode,
+    difficulty: (mode === "goat" ? "normal" : stateDifficulty({ difficulty: selectedDifficulty })),
+    distClass: (mode === "goat" ? "dracon" : stateDistClass({ distClass: selectedDistClass })),
     ngPlus: !!isNgPlus,
     heroId: heroId,
     activeCharId: heroId,
@@ -2001,6 +2098,8 @@ function enterWorld(reloadIframe){
   if(!S) return;
   document.getElementById("titleScr").style.display = "none";
   document.getElementById("charScr").style.display = "none";
+  var settingScrEl = document.getElementById("settingScr");
+  if(settingScrEl) settingScrEl.style.display = "none";
   document.getElementById("ingameNav").style.display = "flex";
 
  var wf = document.getElementById("worldFrame");
@@ -2180,6 +2279,8 @@ function launchGolfIframe(tgt, overrideCharId){
   var battleCtx = {
     startedAt: Date.now(),
     mode: S.mode,
+    difficulty: stateDifficulty(S),
+    distClass: stateDistClass(S),
     area: S.area,
     areaName: AREAS[S.area].name,
     playerName: overrideCharId ? (overrideCharId + "（盟友救出）") : S.playerName,
@@ -3447,7 +3548,7 @@ function refreshTitleSaveBadges(){
       var st = JSON.parse(localStorage.getItem(resumeKey(m)) || "null");
       if(st && st.playerName){
         var rk = getRankObj(st.tp || 0);
-        el.textContent = "💾 中断データあり：" + st.playerName + "｜" + (AREAS[st.area]?AREAS[st.area].name:"京都") + "｜" + rk.title + (st.activeBattle ? "（⛳対戦中）" : "");
+        el.textContent = "💾 中断データあり：" + st.playerName + "｜" + (AREAS[st.area]?AREAS[st.area].name:"京都") + "｜" + rk.title + (m === "normal" ? "｜難易度：" + diffDef(stateDifficulty(st)).name + "｜飛距離：" + distClassDef(stateDistClass(st)).name : "") + (st.activeBattle ? "（⛳対戦中）" : "");
       } else {
         el.textContent = "新規プレイ可能";
       }
@@ -3468,12 +3569,114 @@ function selectTitleMode(m){
   refreshTitleSaveBadges();
 }
 
+/* =========================================================================
+   v4.16 設定ステップ（主人公選択の後・通常モードのみ）:
+   難易度と飛距離クラスをカスタムプルダウンで選ぶ。選択は selectedDifficulty /
+   selectedDistClass に保持され、createInitialState が S へ取り込む（実証済みの経路）。
+   ========================================================================= */
+function buildSettingDropdown(mount, items, selId, onPick){
+  mount.innerHTML = "";
+  var wrap = document.createElement("div");
+  wrap.className = "pdd";
+  var selItem = items[0];
+  items.forEach(function(it){ if(it.id === selId) selItem = it; });
+  var head = document.createElement("button");
+  head.type = "button";
+  head.className = "pdd-head";
+  head.innerHTML = "<span class='pdd-val'></span><span class='pdd-chev'>▼</span>";
+  head.querySelector(".pdd-val").textContent = selItem.name;
+  var list = document.createElement("div");
+  list.className = "pdd-list";
+  list.style.display = "none";
+  items.forEach(function(it){
+    var row = document.createElement("div");
+    row.className = "pdd-opt" + (it.id === selId ? " sel" : "");
+    var lab = document.createElement("span");
+    lab.textContent = it.name;
+    row.appendChild(lab);
+    if(it.id === selId){
+      var ck = document.createElement("span");
+      ck.className = "pdd-check"; ck.textContent = "✔";
+      row.appendChild(ck);
+    }
+    row.addEventListener("click", function(){
+      Array.prototype.forEach.call(list.querySelectorAll(".pdd-opt"), function(o){
+        o.classList.remove("sel");
+        var c = o.querySelector(".pdd-check"); if(c) c.remove();
+      });
+      row.classList.add("sel");
+      var ck2 = document.createElement("span");
+      ck2.className = "pdd-check"; ck2.textContent = "✔";
+      row.appendChild(ck2);
+      head.querySelector(".pdd-val").textContent = it.name;
+      list.style.display = "none"; head.classList.remove("open");
+      onPick(it.id);
+    });
+    list.appendChild(row);
+  });
+  head.addEventListener("click", function(){
+    var willOpen = (list.style.display === "none");
+    closeAllSettingDropdowns();
+    if(willOpen){ list.style.display = "block"; head.classList.add("open"); }
+  });
+  wrap.appendChild(head);
+  wrap.appendChild(list);
+  mount.appendChild(wrap);
+  return wrap;
+}
+
+function closeAllSettingDropdowns(){
+  Array.prototype.forEach.call(document.querySelectorAll("#settingScr .pdd-list"), function(l){ l.style.display = "none"; });
+  Array.prototype.forEach.call(document.querySelectorAll("#settingScr .pdd-head"), function(h){ h.classList.remove("open"); });
+}
+
+function updateSettingDesc(){
+  var el = document.getElementById("settingDesc");
+  if(!el) return;
+  var df = diffDef(selectedDifficulty);
+  var dc = distClassDef(selectedDistClass);
+  el.innerHTML =
+    "<div><b style='color:var(--gold-bright);'>難易度：" + df.name + "</b> ― " + df.desc + " <span style='color:var(--cyan);font-weight:700;'>" + df.just + "</span></div>" +
+    "<div style='margin-top:5px;'><b style='color:var(--gold-bright);'>飛距離：" + dc.name + "</b> ― " + dc.desc + "</div>";
+}
+
+function renderSettingStep(){
+  var nameInp = document.getElementById("nameInput");
+  var nm = (nameInp && nameInp.value) ? nameInp.value : selectedHeroId;
+  var heroLine = document.getElementById("settingHeroLine");
+  if(heroLine) heroLine.textContent = "主人公：" + nm + (nm !== selectedHeroId ? "（" + selectedHeroId + "）" : "");
+  buildSettingDropdown(document.getElementById("diffPdd"), DIFFICULTIES, selectedDifficulty, function(id){
+    selectedDifficulty = id; SOUND.sfx("click"); updateSettingDesc();
+  });
+  buildSettingDropdown(document.getElementById("distPdd"), DIST_CLASSES, selectedDistClass, function(id){
+    selectedDistClass = id; SOUND.sfx("click"); updateSettingDesc();
+  });
+  updateSettingDesc();
+}
+
+function showSettingStep(){
+  document.getElementById("charScr").style.display = "none";
+  document.getElementById("settingScr").style.display = "flex";
+  renderSettingStep();
+}
+
+/* プルダウンの外側を押したら閉じる（設定ステップ表示中のみ） */
+document.addEventListener("click", function(ev){
+  var scr = document.getElementById("settingScr");
+  if(!scr || scr.style.display === "none") return;
+  if(ev.target && ev.target.closest && !ev.target.closest(".pdd")) closeAllSettingDropdowns();
+});
+
 function renderCharSelection(){
   var list = document.getElementById("charList");
   list.innerHTML = "";
   document.getElementById("charModeLabel").textContent =
     (selectedMode === "goat" ? "👑 GOATモード（神装完成・無敵・全聖地解放）" :
     (pendingNgPlus ? "🌟 周回プレイ New Game+（図鑑・称号・裏聖地引継ぎ＆初期ボーナス）" : "🏌️ 通常モード（王道神話RPG本編）"));
+  /* v4.16: 通常モードでは主人公選択の後に設定ステップ（難易度＆飛距離）を挟む。
+     GOATモードは設定なしで従来どおり即・旅立ち。 */
+  var startBtnEl = document.getElementById("startBtn");
+  if(startBtnEl) startBtnEl.textContent = (selectedMode === "goat") ? "⛩ 京都・天孫降臨の地へ旅立つ" : "✦ 次へ ― 難易度と飛距離を選ぶ";
 
   CHARS.forEach(function(c){
     var box = document.createElement("div");
@@ -3539,12 +3742,31 @@ document.getElementById("backTitleBtn").onclick = function(){
   refreshTitleSaveBadges();
 };
 
-document.getElementById("startBtn").onclick = function(){
-  SOUND.resume(); SOUND.sfx("fanfare");
+function startNewJourney(){
   var customName = document.getElementById("nameInput").value;
   S = createInitialState(selectedMode, selectedHeroId, customName, pendingNgPlus);
   saveSlot(0, "[AUTO] 旅立ちオートセーブ");
   enterWorld(true);
+}
+
+document.getElementById("startBtn").onclick = function(){
+  SOUND.resume();
+  /* v4.16: 通常モードは主人公選択の後に設定ステップを挟む。GOATは従来どおり即・旅立ち */
+  if(selectedMode === "normal"){ SOUND.sfx("click"); showSettingStep(); return; }
+  SOUND.sfx("fanfare");
+  startNewJourney();
+};
+
+document.getElementById("backCharBtn").onclick = function(){
+  SOUND.sfx("click");
+  document.getElementById("settingScr").style.display = "none";
+  document.getElementById("charScr").style.display = "flex";
+  renderCharSelection();
+};
+
+document.getElementById("departBtn").onclick = function(){
+  SOUND.resume(); SOUND.sfx("fanfare");
+  startNewJourney();
 };
 
 /* トップバーボタン配線 */

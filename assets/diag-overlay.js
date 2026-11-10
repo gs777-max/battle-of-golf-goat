@@ -135,7 +135,7 @@
 
   function render() {
     var lines = [];
-    lines.push('=== GOAT DIAG v4.15 (' + ts() + ') ===');
+    lines.push('=== GOAT DIAG v4.16 (' + ts() + ') ===');
     lines.push('page: ' + pageKind + ' / host: ' + location.host + ' path: ' + location.pathname);
     lines.push('AV: ' + (window.__GOAT_AV__ || '?') + ' / engine badge: ' + (function () { try { var b = document.querySelector('[data-engine-badge]') || document.getElementById('engineBadge'); return b ? b.textContent : '(不明)'; } catch (e) { return '?'; } })());
     lines.push('UA: ' + navigator.userAgent.slice(0, 110));

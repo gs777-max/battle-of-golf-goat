@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.15');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.16');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -714,6 +714,12 @@ const CLUBS_SUPER=[
 // ゲーム中に有効なCLUBS（game.start()で切り替える）
 let CLUBS=CLUBS_NORMAL;
 
+// 飛距離クラス（v4.16）: 基準は通常モード・素のクラブ定義 CLUBS_NORMAL の DR maxDist = 350y。
+// 倍率 = 目標ヤード ÷ 350。GOD = 現状（×1.0）。全クラブに同じ倍率をかけ、
+// ギア補正（_getGoatDistMult）は、その土台に今までどおり乗る。
+const DIST_CLASS_BASE_YD=350;
+const DIST_CLASS_MULT={ amateur:200/350, top_pro:250/350, tour_pro:300/350, dracon:1.0 };
+
 const COURSES=[
   {id:"toda",name:"戸田パブリック",flag:"🇯🇵",desc:"荒川河川敷 18H(9H×2WAY) Par72",color:0x698B22,
    terrainProfile:"flat_river", greenSpeed:11.0, roughType:"korai",
@@ -1355,6 +1361,15 @@ class ShotController{
     this.niceShotLabel="";
     this.clubMaxDist=0; // 現在クラブの最大飛距離（推定距離表示用）
   }
+  /* 難易度（v4.16・方式C）: 第2段の針速と UNS 半幅だけを変える。ノーマルは現行定数そのもの。
+     難易度は対戦ブリッジが window.GOAT_BATTLE.difficulty に載せる（未設定時はノーマル）。 */
+  _diffParams(){
+    var d = (typeof window !== "undefined" && window.GOAT_BATTLE && window.GOAT_BATTLE.difficulty) || "normal";
+    if(d === "super_easy") return { speed:1.05, unsHalf:0.055 };
+    if(d === "easy")       return { speed:1.28, unsHalf:0.040 };
+    if(d === "hard")       return { speed:1.80, unsHalf:0.022 };
+    return { speed:1.5, unsHalf:0.03 };
+  }
   reset(){
     this.phase=0;this.power=0;this.accuracy=0;this.niceShotBonus=0;
     this.needlePos=0;this.needleDir=1;this.animating=false;
@@ -1372,6 +1387,7 @@ class ShotController{
   startSwing(){
     if(this.phase!==0)return;
     this.phase=1;this.animating=true;this.needlePos=0;this.needleDir=1;
+    this.UNS_HALF=this._diffParams().unsHalf; // 難易度に応じた JUST 帯（ノーマルは現行 ±3%）
     document.getElementById("shotGuide").textContent="⬆️ パワー最大点でもう一度！";
     const iz=document.getElementById("impactZone");if(iz)iz.style.display="none";
     const izu=document.getElementById("impactZoneUNS");if(izu)izu.style.display="none";
@@ -1427,7 +1443,7 @@ class ShotController{
     const pzh=document.getElementById("powerZoneHint");
     if(pzh){pzh.textContent="★ 中央でUNS +50%！";pzh.style.color="#ff88ff";}
     document.getElementById("shotGuide").textContent=`POWER ${this.power}%  ▶ タイミング！`;
-    this.needleSpeed=1.5;
+    this.needleSpeed=this._diffParams().speed; // 難易度に応じた第2段の針速（ノーマルは現行 1.5）
   }
   setImpact(){
     if(this.phase!==2)return;
@@ -6504,6 +6520,14 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
   start(course,charData,weatherType,roundHoles,distMode){
     // 飛距離モードに応じてCLUBSを切り替え（グローバル変数を更新）
     CLUBS = distMode==="super" ? CLUBS_SUPER : CLUBS_NORMAL;
+    // 飛距離クラス（v4.16）: 通常モード時のみ、全クラブの maxDist にクラス倍率を適用した土台にする。
+    // GOAT（super）は従来どおり無適用。クラスは対戦ブリッジが window.GOAT_BATTLE.distClass に載せる（未設定 = dracon = ×1.0 で現行と完全同一）。
+    if(distMode!=="super"){
+      var dcm = (typeof window!=="undefined" && window.GOAT_BATTLE) ? DIST_CLASS_MULT[window.GOAT_BATTLE.distClass] : undefined;
+      if(typeof dcm==="number" && dcm!==1.0){
+        CLUBS = CLUBS_NORMAL.map(function(c){ var cc=Object.assign({},c); cc.maxDist=c.maxDist*dcm; return cc; });
+      }
+    }
     // クラブボタンの距離表示を更新（GOAT飛距離倍率を反映）
     const startGm = this._getGoatDistMult ? this._getGoatDistMult() : 1.0;
     document.querySelectorAll(".club-btn").forEach((b,i)=>{
@@ -7066,6 +7090,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var B = {
     ctx: null,
     mode: q.get("mode") || "normal",
+    difficulty: "normal",
+    distClass: "dracon",
     courseId: q.get("course") || "toda",
     holesCount: parseInt(q.get("holes") || "3", 10),
     isResume: q.get("resume") === "1",
@@ -7817,6 +7843,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var ctx = B.ctx || loadStoredCtx();
     if(ctx){
       B.mode = ctx.mode || B.mode;
+      B.difficulty = ["super_easy","easy","normal","hard"].indexOf(ctx.difficulty) >= 0 ? ctx.difficulty : "normal";
+      B.distClass = ["amateur","top_pro","tour_pro","dracon"].indexOf(ctx.distClass) >= 0 ? ctx.distClass : "dracon";
       B.playerName = ctx.playerName || B.playerName;
       B.playerPower = typeof ctx.power === "number" ? ctx.power : 100;
       B.playerMental = typeof ctx.mental === "number" ? ctx.mental : 100;
