@@ -1,4 +1,4 @@
-import { boot } from './boot-common.js?v=4.16';
+import { boot } from './boot-common.js?v=4.17';
 boot({
   params: { antialias: true, powerPreference: 'high-performance' },
   gameSrc: 'assets/game-world.js'

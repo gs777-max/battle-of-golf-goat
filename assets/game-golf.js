@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.16');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.17');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -717,6 +717,8 @@ let CLUBS=CLUBS_NORMAL;
 // 飛距離クラス（v4.16）: 基準は通常モード・素のクラブ定義 CLUBS_NORMAL の DR maxDist = 350y。
 // 倍率 = 目標ヤード ÷ 350。GOD = 現状（×1.0）。全クラブに同じ倍率をかけ、
 // ギア補正（_getGoatDistMult）は、その土台に今までどおり乗る。
+// v4.17: GOAT（CLUBS_SUPER、DR maxDist = 500y）にも同じ倍率表をそのまま適用する
+// （GOD = 500y で現行 GOAT と完全同一。他クラスは 500y 基準の換算になる）。
 const DIST_CLASS_BASE_YD=350;
 const DIST_CLASS_MULT={ amateur:200/350, top_pro:250/350, tour_pro:300/350, dracon:1.0 };
 
@@ -6520,12 +6522,14 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
   start(course,charData,weatherType,roundHoles,distMode){
     // 飛距離モードに応じてCLUBSを切り替え（グローバル変数を更新）
     CLUBS = distMode==="super" ? CLUBS_SUPER : CLUBS_NORMAL;
-    // 飛距離クラス（v4.16）: 通常モード時のみ、全クラブの maxDist にクラス倍率を適用した土台にする。
-    // GOAT（super）は従来どおり無適用。クラスは対戦ブリッジが window.GOAT_BATTLE.distClass に載せる（未設定 = dracon = ×1.0 で現行と完全同一）。
-    if(distMode!=="super"){
+    // 飛距離クラス（v4.16）: 全クラブの maxDist にクラス倍率を適用した土台にする。
+    // クラスは対戦ブリッジが window.GOAT_BATTLE.distClass に載せる（未設定 = dracon = ×1.0 で現行と完全同一）。
+    // v4.17: GOAT（super）にも同じ倍率を適用する。土台は CLUBS_SUPER（DR 500y）で、倍率そのものは通常モードと共通。
+    {
       var dcm = (typeof window!=="undefined" && window.GOAT_BATTLE) ? DIST_CLASS_MULT[window.GOAT_BATTLE.distClass] : undefined;
       if(typeof dcm==="number" && dcm!==1.0){
-        CLUBS = CLUBS_NORMAL.map(function(c){ var cc=Object.assign({},c); cc.maxDist=c.maxDist*dcm; return cc; });
+        var baseClubs = CLUBS;
+        CLUBS = baseClubs.map(function(c){ var cc=Object.assign({},c); cc.maxDist=c.maxDist*dcm; return cc; });
       }
     }
     // クラブボタンの距離表示を更新（GOAT飛距離倍率を反映）
