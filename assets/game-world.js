@@ -20,7 +20,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.13');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.15');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -710,7 +710,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
 
       /* 天空の神域（エリア5）は周囲に幻想的な雲海リングを配置 */
       if (AREA_IDX === 5) {
-        var cloudMat = new THREE.MeshStandardMaterial({ color: 0xfff9ee, roughness: 0.95, transparent: true, opacity: 0.82 });
+        var cloudMat = new THREE.MeshStandardMaterial({ color: 0xfff9ee, roughness: 0.95, transparent: true, opacity: 0.82, depthWrite: false }); /* v4.15: 画素プローブで実害を確認（重なる雲同士で後方の雲が欠ける）。雲は32個で1枚のマテリアルを共有。 */
         for (var c = 0; c < 32; c++) {
           var ang = (c / 32) * Math.PI * 2;
           var rad = 98 + (c % 3) * 14;
@@ -729,6 +729,8 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
     };
     var waterMat = window.__GOAT_SHADER__('worldWater', {
       transparent: true,
+      depthWrite: false, /* v4.15: 画素プローブで実害を確認（水面が後方の半透明物を欠けさせる）。水面は平面1枚で自己交差がないため描画順のみで正しく重なる。 */
+
       uniforms: waterUniforms,
       vertexShader: [
         "uniform float uTime;",
@@ -2130,17 +2132,19 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
 
     var sacredAuraRing = new THREE.Mesh(
       new THREE.RingGeometry(0.85, 1.15, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffd875, side: THREE.DoubleSide, transparent: true, opacity: 0.0 })
+      new THREE.MeshBasicMaterial({ color: 0xffd875, side: THREE.DoubleSide, transparent: true, opacity: 0.0, depthWrite: false })
     );
     sacredAuraRing.rotation.x = -Math.PI / 2;
     sacredAuraRing.position.y = 0.08;
+    sacredAuraRing.visible = false; /* v4.14: opacity 0 のまま visible だと深度だけ書いて後方を遮るため、表示と連動させる */
     playerMesh.add(sacredAuraRing);
 
     var chargeOrb = new THREE.Mesh(
       new THREE.SphereGeometry(0.32, 16, 12),
-      new THREE.MeshBasicMaterial({ color: 0x5ce1e6, transparent: true, opacity: 0.0 })
+      new THREE.MeshBasicMaterial({ color: 0x5ce1e6, transparent: true, opacity: 0.0, depthWrite: false })
     );
     chargeOrb.position.set(0.38, 0.55, 0.48);
+    chargeOrb.visible = false; /* v4.14: 同上（チャージ中のみ表示） */
     playerMesh.add(chargeOrb);
 
     /* 環境パーティクル（桜吹雪・黄金粒子・黄泉霧→天岩戸の光） */
@@ -2344,6 +2348,22 @@ scene.remove(m.mesh);
       wrap.style.display = "block";
       if (bannerTimer) clearTimeout(bannerTimer);
       bannerTimer = setTimeout(function () { wrap.style.display = "none"; }, 3200);
+    }
+
+    /* v4.15: 波動弾・FX除去時の解放ヘルパー（golf側FXManagerと同型）。生成時に毎回 new される
+       geometry/material を、除去時に必ず解放する。FX/波動弾のメッシュは生成ごとに新規作成で
+       共有資産を使っていないため、ここでの dispose は他への影響がない。 */
+    function _disposeFxObj(obj) {
+      if (!obj) return;
+      try {
+        obj.traverse(function (o) {
+          if (o.geometry) { try { o.geometry.dispose(); } catch (e) {} }
+          if (o.material) {
+            var ms = Array.isArray(o.material) ? o.material : [o.material];
+            ms.forEach(function (m) { try { m.dispose(); } catch (e) {} });
+          }
+        });
+      } catch (e) {}
     }
 
     function spawnPillarFX(x, z, colorHex, radius, height, dur) {
@@ -2771,6 +2791,7 @@ scene.remove(m.mesh);
       chargingPointerId = null;
       document.getElementById("chargeHud").style.display = "none";
       skyUniforms.uStorm.value = 0;
+      chargeOrb.visible = false;
       chargeOrb.material.opacity = 0;
       fireWaveShot(chargeTime);
       chargeTime = 0;
@@ -3324,10 +3345,12 @@ scene.remove(m.mesh);
       /* 神装オーラ演出 */
       var gs = STATE.gearStats || {};
       if (gs.setGodComplete || gs.setThree || gs.setOlympus) {
+        sacredAuraRing.visible = true;
         sacredAuraRing.material.opacity = 0.52 + Math.sin(elapsed * 4) * 0.18;
         sacredAuraRing.material.color.setHex(gs.setGodComplete ? 0x5ce1e6 : 0xffd875);
         sacredAuraRing.rotation.z = elapsed * 1.4;
       } else {
+        sacredAuraRing.visible = false;
         sacredAuraRing.material.opacity = 0;
       }
 
@@ -3342,6 +3365,7 @@ scene.remove(m.mesh);
         lvEl.textContent = lv === 3 ? "Lv.3 MAX（神威覚醒！）" : ("Lv." + lv);
         lvEl.style.color = lv === 3 ? "#ff6b81" : (lv === 2 ? "#ffd875" : "#5ce1e6");
 
+        chargeOrb.visible = true;
         chargeOrb.material.opacity = 0.45 + lv * 0.18;
         chargeOrb.material.color.setHex(lv === 3 ? 0xffd875 : (lv === 2 ? 0x7ee8fa : 0x48dbfb));
         chargeOrb.scale.setScalar(0.8 + Math.sin(elapsed * 22) * 0.18 + lv * 0.35);
@@ -3569,6 +3593,7 @@ scene.remove(m.mesh);
             if (sandBlind) showToast("🌪 白虎・バンカー砂煙目くらまし発動！（周囲5秒スタン）");
             checkSubTrialCrystalHit(p.x, gy + 2, p.z, 6.5);
             scene.remove(p.mesh);
+            _disposeFxObj(p.mesh); /* v4.15: 波動弾の除去時に解放（蓄積の修正） */
             PROJECTILES.splice(pi, 1);
             continue;
           }
@@ -3583,6 +3608,7 @@ scene.remove(m.mesh);
         /* 神話の試練クリスタルへの命中判定 */
         if (checkSubTrialCrystalHit(p.x, p.y, p.z, 2.8) && !p.pierce) {
           scene.remove(p.mesh);
+          _disposeFxObj(p.mesh); /* v4.15: 波動弾の除去時に解放（蓄積の修正） */
           PROJECTILES.splice(pi, 1);
           continue;
         }
@@ -3609,6 +3635,7 @@ scene.remove(m.mesh);
           }
           if (removeProj || p.dist >= p.maxDist) {
             scene.remove(p.mesh);
+            _disposeFxObj(p.mesh); /* v4.15: 波動弾の除去時に解放（蓄積の修正） */
             PROJECTILES.splice(pi, 1);
           }
         }
@@ -3691,6 +3718,7 @@ scene.remove(m.mesh);
         var k = fx.age / fx.dur;
         if (k >= 1) {
           scene.remove(fx.mesh);
+          _disposeFxObj(fx.mesh); /* v4.15: FXの除去時に解放（蓄積の修正） */
           FX_LIST.splice(fi, 1);
           continue;
         }

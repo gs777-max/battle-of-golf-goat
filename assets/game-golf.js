@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.13');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.15');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -1153,12 +1153,12 @@ class TerrainGen{
 // ─────────────────────────────────────────────────────────────
 const TODA_PALETTE = {
   tee:      0x34b233, // 鮮やかな緑（高麗芝）
-  fairway:  0x1d5210, // 濃淡美しい高麗芝フェアウェイ
+  fairway:  0x17420c, // 濃淡美しい高麗芝フェアウェイ /* v4.15: 空撮で縞と同化していたため深くする（縞 0x276314 は据え置きで明暗差を出す）。 */
   firstCut: 0x1a4d0e, // FWより一段階暗く抵抗を感じさせる
-  rough:    0x184210, // 深く密集した高麗芝の重さ
+  rough:    0x143806, // 深く密集した高麗芝の重さ（v4.15: 空撮でフェアウェイと同化していたため少し深くする）
   green:    0x1e7d16, // 砲台グリーン高麗芝
   bunker:   0xd8b47c, // 重く湿り気のある河川敷ダークベージュ
-  water:    0x1e6ca8, // 荒川スチールブルー
+  water:    0x0f5a92, // 荒川スチールブルー /* v4.15: 空撮で池が淡い水色に見えていたため深い青にする（飽和青に寄せる）。 */
   bush:     0x0d4f0d, // 視覚的圧迫感を与える深い深緑
   ob:       0xFFFFFF, // 白杭
   penalty:  0xFFCC00  // 黄・赤杭
@@ -1964,7 +1964,7 @@ class GolfGame{
     if(last&&last.distanceTo(p)<0.15)return;
     this._curTracePoints.push(new THREE.Vector3(p.x,p.y,p.z));
     if(this._curTracePoints.length<3)return;
-    if(this._curTraceLine){this.scene.remove(this._curTraceLine);if(this._curTraceLine.type==='Group'){this._curTraceLine.children.forEach(c=>{if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();});}else if(this._curTraceLine.geometry){this._curTraceLine.geometry.dispose();}}
+    if(this._curTraceLine){this.scene.remove(this._curTraceLine);if(this._curTraceLine.type==='Group'){this._curTraceLine.children.forEach(c=>{if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();});}else if(this._curTraceLine.geometry){this._curTraceLine.geometry.dispose();if(this._curTraceLine.material){try{this._curTraceLine.material.dispose();}catch(e){}}}} /* v4.14: Lineフォールバック時もマテリアルを解放（従来はgeometryのみでLineBasicMaterialが飛行フレーム数だけ漏れていた） */
     // フェーズ別カラー：キャリー=黄、ラン=緑、パット=水色
     const col=this.ball.phase==="putt_roll"?0x44ddff:this.ball.phase==="run"?0x66ff66:0xffdd33;
     try{
@@ -2461,7 +2461,7 @@ class GolfGame{
       this.scene.remove(_old);
       _old.traverse(function(o){
         if(o.geometry){ try{ o.geometry.dispose(); }catch(e){} }
-        if(o.material){ const _ms=Array.isArray(o.material)?o.material:[o.material]; for(const _m of _ms){ try{ _m.dispose(); }catch(e){} } }
+        if(o.material){ const _ms=Array.isArray(o.material)?o.material:[o.material]; for(const _m of _ms){ try{ _m.dispose(); }catch(e){} /* v4.14: シャツ用CanvasTexture（ホール毎に1枚生成）もここで解放。共有のファイルテクスチャはCanvasTextureではないため対象外 */ for(const _slot of ['map','normalMap','roughnessMap','emissiveMap']){ const _tx=_m[_slot]; if(_tx && _tx.isCanvasTexture){ try{ _tx.dispose(); }catch(e2){} } } } }
         if(o.isInstancedMesh && o.dispose){ try{ o.dispose(); }catch(e){} }
       });
     }
@@ -3205,7 +3205,7 @@ class GolfGame{
     // ②  ラフ（コース別・プロ品質）
     // ═══════════════════════════════════════════════════════
     // ベースラフ色（コース芝の種類で異なる）
-    const roughColor = 0x3a5a22;
+    const roughColor = 0x2e4a1a; /* v4.15: 空撮でフェアウェイと同化していたため少し深くする。 */
     add(new THREE.PlaneGeometry(TW*2.3,TH*1.09),roughColor||0x1b5814,-0.06);
     // セミラフ（フェアウェイとラフの中間）
     const semiRough=isLinks?(rain?0x484828:0x788840):(rain?0x226010:0x2a8018);
@@ -3253,13 +3253,13 @@ class GolfGame{
     const bandD2=12;
     const ns=Math.ceil(TH/bandD2)+1;
     const toneA=rain?0x348018:isLinks?0x5a8828:0x44c020,
-          toneB=rain?0x2a700e:isLinks?0x4a7820:0x38aa18,
+          toneB=rain?0x2a700e:isLinks?0x4a7820:0x2f9a14, /* v4.15: 濃い側の縞を少し深くして縞のコントラストを戻す。 */
           toneC=rain?0x307518:isLinks?0x508030:0x3fb01a;
     for(let s=0;s<ns;s++){
       const col=s%2===0?toneA:toneB;
       const stripe=new THREE.Mesh(
         new THREE.PlaneGeometry(TW,bandD2-0.12),
-        new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:dlSide!==0?0.16:0.5})
+        new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:dlSide!==0?0.16:0.7}) /* v4.15: 空撮で縞が薄く見えていたため不透明度を上げる（色・幅・間隔は不変）。 */
       );
       stripe.rotation.x=-Math.PI/2;
       stripe.position.set(0,0.01,-(s+0.5)*bandD2+2);
@@ -3511,7 +3511,7 @@ const bCntGreen=Math.min(bunkerCount,5);
         new THREE.MeshBasicMaterial({color:0x082848,transparent:true,opacity:0.9}));
       deep.rotation.x=-Math.PI/2;deep.position.set(wx,-0.12,wz2);this.scene.add(deep);
       // L4: メイン水面
-      const wC=rain?0x1a3a58:fog?0x1e3c50:0x1868b0;
+      const wC=rain?0x1a3a58:fog?0x1e3c50:0x0e4f86; /* v4.15: 空撮で池が淡い水色に見えていたため深い青にする（飽和青に寄せる）。 */
       const water=new THREE.Mesh(new THREE.PlaneGeometry(wW,wH),
         new THREE.MeshBasicMaterial({color:wC,transparent:true,opacity:0.9}));
       water.rotation.x=-Math.PI/2;water.position.set(wx,-0.02,wz2);this.scene.add(water);
@@ -4030,7 +4030,7 @@ const bCntGreen=Math.min(bunkerCount,5);
   _buildSlopeArrows(){
     if(!this.scene||!this.greenPos)return;
     if(this._slopeArrows){
-      this._slopeArrows.forEach(a=>this.scene.remove(a));
+      this._slopeArrows.forEach(a=>{ try{ if(a.geometry) a.geometry.dispose(); if(a.material) a.material.dispose(); }catch(e){} this.scene.remove(a); }); /* v4.15: グリーンオン時の再生成で旧コーンが残留していたため解放する。 */
     }
     this._slopeArrows=[];
     if(!this.greenPos)return;
@@ -4187,6 +4187,7 @@ const bCntGreen=Math.min(bunkerCount,5);
     flag.position.set(gp.x + 1.4, gp.y + 7.2, gp.z);
     this.scene.add(flag);
     this._flagMesh = flag;
+    if(this._flagBaseGeo){ try{ this._flagBaseGeo.dispose(); }catch(e){} } /* v4.15: クローンはシーンに属さず loadHole の網にかからないため、上書き前に解放する。 */
     this._flagBaseGeo = flagGeo.clone();
 
     // 旗頭に輝くゴールデンボールマーカー（遠くからでもピン位置が一目瞭然）
@@ -4341,6 +4342,7 @@ const bCntGreen=Math.min(bunkerCount,5);
     if(this._idleOn) return; this._idleOn=true;
     const loop=()=>{
       requestAnimationFrame(loop);
+      if(document.hidden) return; /* v4.14: 非表示中は待機モーションの更新も止める */
       if(this._swinging||!this.playerJoints||!this.playerMesh||!this.playerMesh.parent) return;
       const J=this.playerJoints, t=performance.now()/1000;
       J.torsoMesh.position.y=0.28+Math.sin(t*1.7)*0.008;
@@ -4469,7 +4471,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       H._cloneTexs = [];
       H.waterMats = [];
       H._clouds = null;
-      const mkTex = (t, rx, ry) => { if(!t || !t.image || !t.image.width) return null; const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); H._cloneTexs.push(c); return c; };
+      /* v4.14: 同じ元テクスチャ×同じrepeatのクローンは1枚を使い回す（従来は地面メッシュ毎に生成し、最終ホール分が残留していた）。使い回し分もH._cloneTexs経由で次ホール開始時に解放される */
+      const _texCache = new Map();
+      const mkTex = (t, rx, ry) => { if(!t || !t.image || !t.image.width) return null; const _k = (t.uuid || t) + '|' + rx + '|' + ry; if(_texCache.has(_k)) return _texCache.get(_k); const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); H._cloneTexs.push(c); _texCache.set(_k, c); return c; };
+      const _oldMats = new Set();
       this.scene.traverse((o) => {
         if(!o.isMesh) return;
         const m = o.material;
@@ -4486,11 +4491,13 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         const geo = o.geometry;
         if(geo){ geo.computeBoundingBox(); const bb = geo.boundingBox; const dims = [bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z].sort((a, b) => b - a); rx = Math.max(1, Math.min(48, Math.round(dims[0] / 6))); ry = Math.max(1, Math.min(48, Math.round(dims[1] / 6))); }
         const nm = new THREE.MeshStandardMaterial({ color: c.getHex(), roughness: kind === 'water' ? 0.12 : 0.94, metalness: kind === 'water' ? 0.05 : 0.0 });
-        if(kind === 'grass'){ nm.map = mkTex(T.grass_detail, rx, ry); nm.normalMap = mkTex(T.grass_nrm, rx, ry); }
-        else if(kind === 'sand'){ nm.map = mkTex(T.sand_detail, rx, ry); nm.normalMap = mkTex(T.sand_nrm, rx, ry); }
-        else { nm.normalMap = mkTex(T.water_nrm, rx, ry); nm.envMapIntensity = 1.3; if(nm.normalMap){ nm.normalMap.wrapS = nm.normalMap.wrapT = THREE.RepeatWrapping; (H.waterMats = H.waterMats || []).push(nm); } }
-        if(nm.map || nm.normalMap) o.material = nm;
+        if(kind === 'grass'){ nm.map = mkTex(T.grass_detail, rx, ry); nm.normalMap = mkTex(T.grass_nrm, rx, ry); nm.envMapIntensity = 0.35; /* v4.15: 芝は反射しないため空の映り込みを抑え、色の濃さを戻す。 */ }
+        else if(kind === 'sand'){ nm.map = mkTex(T.sand_detail, rx, ry); nm.normalMap = mkTex(T.sand_nrm, rx, ry); nm.envMapIntensity = 0.35; /* v4.15: 同上。 */ }
+        else { nm.normalMap = mkTex(T.water_nrm, rx, ry); nm.envMapIntensity = 0.6; /* v4.15: 池の飽和青を戻す（従来1.3では空の反射で白く抜けていた）。 */ if(nm.normalMap){ nm.normalMap.wrapS = nm.normalMap.wrapT = THREE.RepeatWrapping; (H.waterMats = H.waterMats || []).push(nm); } }
+        if(nm.map || nm.normalMap){ _oldMats.add(m); o.material = nm; }
       });
+      /* v4.14: 差し替えで外れた旧Lambertマテリアルを解放（従来は参照を失うだけでホール毎に蓄積）。他のメッシュがまだ使っているものは残す */
+      if(_oldMats.size){ const _inUse = new Set(); this.scene.traverse((o) => { if(o.material){ const _ms = Array.isArray(o.material) ? o.material : [o.material]; for(const _m of _ms) _inUse.add(_m); } }); for(const _om of _oldMats){ if(!_inUse.has(_om)){ try{ _om.dispose(); }catch(e){} } } }
       /* v4.3改: 雲スプライトと水面アニメーション */
       if(T.cloud && !H._clouds){
         H._clouds = [];
@@ -4510,6 +4517,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         const tick = () => {
           requestAnimationFrame(tick);
           const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now;
+          if(document.hidden) return; /* v4.14: 非表示中は水面・雲のアニメーションを止める */
           try{
             if(H.waterMats) for(const wm of H.waterMats){ if(wm.normalMap){ wm.normalMap.offset.x += dt * 0.010; wm.normalMap.offset.y += dt * 0.004; } }
             if(H._clouds) for(const sp of H._clouds){ sp.position.x += sp.userData.v * dt; if(sp.position.x > 300) sp.position.x = -300; }
@@ -4711,7 +4719,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
 
     /* --- 遠景: なだらかな丘陵+樹海の地平線 (三角山は廃止) --- */
     {
-      const hillCols = [0x274d21, 0x2f5a26, 0x22451d];
+      const hillCols = [0x1e3d19, 0x244a1e, 0x1a3516]; /* v4.15: 空撮で丘が白く抜けて平坦に見えていたため少し深くする。 */
       /* v4.10 B1: 晴天時は fog:false で距離による漂白を無くす（雨・霧天は従来の霧に任せる）。
          沈めて扁平化し、地平線に着地させる（旧 y-0.06 / 扁平0.26-0.36 で浮いて見えた）。
          ※ 霞色の焼き込みは太陽光で白く飛ぶため不採用。元の深緑のまま fog を切るのが最も自然だった（diag nofog で確認） */
@@ -6567,6 +6575,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       requestAnimationFrame(loop);
       try{
         const dt=Math.min(this.clock.getDelta(),0.05);
+        if(document.hidden){ return; } /* v4.14: 非表示iframeの描画・物理演算を止める（ワールド側と同型。ワールド表示中のゴルフ先読みフレームがCPU/GPUを消費し続けていた）。getDeltaは上で消費済みのため復帰時のdt跳ねはない */
         this.weather.update(dt);
         if(!this.ball.inFlight){
           const prev=this.aimAngle;this._processAimInput(dt);
@@ -7253,7 +7262,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  setInterval(function(){ if(B.started) updateBattleHUD(performance.now()); }, 75);
+  setInterval(function(){ if(B.started && !document.hidden) updateBattleHUD(performance.now()); }, 75); /* v4.14: 非表示中はHUD更新を止める */
 
   /* 敵ゴースト初期化＆プレイヤーの1打ごとのリアルタイム進行シミュレーション */
   function resetGhostForHole(){
@@ -7516,7 +7525,7 @@ document.addEventListener('DOMContentLoaded', function () {
         new THREE.Vector3(midX, this.getGY(midX, midZ) + 0.14, midZ),
         new THREE.Vector3(pp.x, this.getGY(pp.x, pp.z) + 0.14, pp.z)
       ];
-      if(B.yataLineMesh) this.scene.remove(B.yataLineMesh);
+      if(B.yataLineMesh){ try{ if(B.yataLineMesh.geometry) B.yataLineMesh.geometry.dispose(); if(B.yataLineMesh.material) B.yataLineMesh.material.dispose(); }catch(e){} this.scene.remove(B.yataLineMesh); } /* v4.15: エイム操作のたびに作り直すため、旧分を解放しないとフレームごとに蓄積する（v4.14の弾道フォールバックと同型）。 */
       var curve = new THREE.CatmullRomCurve3(pts);
       B.yataLineMesh = new THREE.Mesh(
         new THREE.TubeGeometry(curve, 24, 0.045, 6, false),
