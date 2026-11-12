@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.17）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.20）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -188,6 +188,7 @@
     display: flex; align-items: center; justify-content: center;
     background: radial-gradient(ellipse at 50% 30%, rgba(28,32,68,0.86) 0%, rgba(5,6,14,0.97) 72%);
     overflow-y: auto; padding: 24px;
+    -webkit-overflow-scrolling: touch; /* v4.18: iOS Safari でオーバーレイ内の慣性スクロールを有効化（下段のカードへ届くように） */
   }
   #bgCanvas { position: fixed; inset: 0; z-index: 39; pointer-events: none; }
   .hero-panel {
@@ -235,6 +236,8 @@
     color: #fffaf0; border: 1px solid var(--gold); border-radius: 999px;
     padding: 13px 36px; font-size: 15.5px; font-weight: 800; letter-spacing: 1px;
     cursor: pointer; transition: all 0.2s; box-shadow: 0 6px 24px rgba(200,145,20,0.38);
+    touch-action: manipulation; /* v4.18: iOS のダブルタップズームを抑える */
+    -webkit-tap-highlight-color: transparent;
   }
   .bigbtn:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,195,50,0.5); }
   .bigbtn.ghost {
@@ -256,12 +259,32 @@
     padding: 14px 10px; background: rgba(20, 24, 46, 0.85);
     border: 1.5px solid rgba(110, 125, 175, 0.35); border-radius: 14px;
     cursor: pointer; transition: all 0.18s; text-align: center;
+    touch-action: manipulation; /* v4.18: iOS のダブルタップズームを抑え、タップを確実に click へ届ける */
+    -webkit-tap-highlight-color: transparent;
   }
   .char-box:hover { border-color: rgba(255,216,117,0.6); transform: translateY(-2px); }
   .char-box.sel {
     border-color: var(--gold);
     background: linear-gradient(160deg, rgba(58,44,14,0.78), rgba(24,26,52,0.92));
     box-shadow: 0 0 22px rgba(255,208,90,0.32);
+  }
+  /* v4.18: 選んだカードは「✓ 選択中」バッジで明示する。Watu は最初から選ばれているため、
+     枠色だけでは「押しても何も変わらない」ように見えてしまう問題（実機報告）の対策。
+     タップのたびに一瞬光るアニメーションも付け、すでに選ばれているカードを
+     押し直しても反応が目に見えるようにする。 */
+  .char-sel-badge {
+    display: inline-block; margin-top: 6px; padding: 2px 12px; border-radius: 999px;
+    background: linear-gradient(135deg, #ffd875, #c98e1e); color: #241a05;
+    font-size: 11px; font-weight: 900; letter-spacing: 1px;
+  }
+  .char-box.tap-flash { animation: charTapFlash .38s ease; }
+  @keyframes charTapFlash {
+    0% { transform: scale(.965); filter: brightness(1.45); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  #charSelLine {
+    margin-top: 14px; font-size: 13px; font-weight: 800; color: var(--gold-bright);
+    min-height: 20px; line-height: 1.6;
   }
   /* 修正(r180版): .overlay の flex中央寄せ+overflow-y では、パネルが画面より
      高い端末で先頭のカード(1人目)がスクロール到達不能な領域に押し出される。
@@ -434,7 +457,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.17"></script>
+<script src="assets/diag-overlay.js?v=4.20"></script>
 </head>
 <body>
 
@@ -508,7 +531,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.17【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.20【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -521,6 +544,7 @@
     <div style="font-family:'Noto Serif JP',serif;font-size:26px;font-weight:900;color:var(--gold-bright);">主人公を選べ ― 神の器</div>
     <div id="charModeLabel" style="color:var(--cyan);margin-top:6px;font-size:13px;font-weight:700;"></div>
     <div class="chars-grid" id="charList"></div>
+    <div id="charSelLine" aria-live="polite"></div>
     <div>
       <input id="nameInput" maxlength="12" placeholder="主人公の表示名を入力">
       <div style="font-size:11.5px;color:var(--text-sub);margin-top:6px;">
@@ -3685,6 +3709,9 @@ function renderCharSelection(){
     box.innerHTML =
       "<div class='char-swatch' style='background:" + c.color + "'>" + renderCharPortraitSVG(c) + "</div>" +
       "<div class='char-nm'>" + c.id + "</div>" +
+      /* v4.18: 選ばれているカードに「✓ 選択中」バッジを表示する。
+         Watu は初期選択のため、バッジが無いと「押しても変わらない」ように見える（実機報告の原因）。 */
+      (c.id === selectedHeroId ? "<div class='char-sel-badge'>✓ 選択中</div>" : "") +
       "<div class='char-rl'>" + escHtml(c.role) + "</div>" +
       "<div class='char-stats'>DR飛距離: <b>" + c.dr + "</b><br>IR: " + c.ir + "<br>AP: " + c.ap + "<br>PT: " + c.pt + "</div>";
     box.onclick = function(){
@@ -3692,10 +3719,21 @@ function renderCharSelection(){
       document.getElementById("nameInput").value = c.id;
       SOUND.sfx("click");
       renderCharSelection();
+      /* v4.18: すでに選ばれているカードの押し直しでも、光るアニメーションで
+         「押せた」ことが目に見えるようにする（再描画後の新しい要素に付ける）。 */
+      var selBox = document.querySelector(".char-box.sel");
+      if(selBox){ selBox.classList.remove("tap-flash"); void selBox.offsetWidth; selBox.classList.add("tap-flash"); }
       narrate(c.desc, "female");
     };
     list.appendChild(box);
   });
+  /* v4.18: 選択中の主人公を文字でも明示する（オーバーレイに覆われて語りバーが見えないため）。 */
+  var selLine = document.getElementById("charSelLine");
+  if(selLine){
+    var sc = null;
+    for(var si = 0; si < CHARS.length; si++){ if(CHARS[si].id === selectedHeroId){ sc = CHARS[si]; break; } }
+    selLine.textContent = sc ? ("選択中の主人公： " + sc.id + "（" + sc.role + "）― 「次へ」を押すとこの主人公で始まります") : "";
+  }
   var inp = document.getElementById("nameInput");
   if(!inp.value) inp.value = selectedHeroId;
 }

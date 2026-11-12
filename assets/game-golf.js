@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.17');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.20');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -1700,9 +1700,9 @@ class GolfGame{
     this.renderer.setSize(window.innerWidth,window.innerHeight);
     // 背景色を明示的に設定（黒画面防止）
     this.renderer.setClearColor(0x4a9fd8,1);
-    // モバイルでは影を軽量化
-    this.renderer.shadowMap.enabled=!isMobile;
-    if(!isMobile)this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    // v4.20 パターン1: 対戦シーンではモバイルでも影を有効化する (2048 PCFSoft は現行維持)
+    this.renderer.shadowMap.enabled=true;
+    this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure=1.15;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -2515,7 +2515,7 @@ class GolfGame{
     }
     else if(this.weather.type==="rain")this.scene.fog=new THREE.Fog(0x2a3a45,60,420);
     else if(this.weather.type==="strongWind")this.scene.fog=new THREE.Fog(0x8aaabb,200,700);
-    else this.scene.fog=new THREE.Fog(0x88c0d8,320,900);
+    else this.scene.fog=new THREE.Fog(0xc78f56,300,900); /* preview v2 p1: warm haze */
     this._buildTerrain(hole,course);
     this._buildPin();this._buildPlayer();this._buildBallMesh();
     this._buildCourseLandmark(course);
@@ -2556,34 +2556,34 @@ class GolfGame{
     const isFog=w.type==="fog";
 
     // ① アンビエント（自然で目に優しい光量・白飛び防止）
-    const ambBase=(isRain?0.50:isFog?0.58:0.68)*Math.PI;
+    const ambBase=(isRain?0.50:isFog?0.58:0.34)*Math.PI; /* preview v2 p1 */
     const amb=new THREE.AmbientLight(0xf4f8f4,ambBase*bm);
     this.scene.add(amb);
     this._allLights.push({light:amb,base:ambBase});
 
     // ② 天空ヘミスフェアライト（青空と芝生の上品な陰影）
-    const hSky=isRain?0x4a5a7a:isFog?0x8a9aa0:isSunny?0x68b0e8:0x60a0d8;
-    const hGnd=isRain?0x1a2a0a:0x204814;
-    const hBase=(isRain?0.35:isFog?0.40:0.52)*Math.PI;
+    const hSky=isRain?0x4a5a7a:isFog?0x8a9aa0:isSunny?0x5a6fc0:0x60a0d8; /* preview v2 p1: dusk sky light */
+    const hGnd=isRain?0x1a2a0a:0x2a2a18; /* preview v2 p1 */
+    const hBase=(isRain?0.35:isFog?0.40:0.28)*Math.PI; /* preview v2 p1 */
     const hemi=new THREE.HemisphereLight(hSky,hGnd,hBase*bm);
     this.scene.add(hemi);
     this._allLights.push({light:hemi,base:hBase});
 
     // ③ メイン太陽光（自然でクッキリした美しい陰影）
-    const sunCol=isSunny?0xfffaee:isWind?0xfff4e0:isRain?0x9aa8bb:isFog?0xbbaacc:0xfff6e4;
-    const sunBase=(isSunny?1.15:isWind?1.05:isRain?0.65:isFog?0.70:0.95)*Math.PI;
+    const sunCol=isSunny?0xffd9a0:isWind?0xfff4e0:isRain?0x9aa8bb:isFog?0xbbaacc:0xfff6e4; /* preview v2 p1: golden */
+    const sunBase=(isSunny?1.55:isWind?1.05:isRain?0.65:isFog?0.70:0.95)*Math.PI; /* preview v2 p1 */
     const sun=new THREE.DirectionalLight(sunCol,sunBase*bm);
     const holeLen = this.terrainH || 400;
     const midZ = -holeLen * 0.5;
-    sun.position.set(120, 240, midZ + 80);
+    sun.position.set(300, 82, midZ + 120); /* preview v2 p1: low sun */
     sun.target.position.set(0, 0, midZ);
     this.scene.add(sun.target);
-    if(!mob){
+    { /* v4.20 パターン1: モバイルでも影カメラを設定する */
       sun.castShadow=true;
       sun.shadow.mapSize.width=2048;sun.shadow.mapSize.height=2048;
       sun.shadow.camera.near=10;
       sun.shadow.camera.far=1400;
-      const shadowW = Math.max(180, this.terrainW * 2.2);
+      const shadowW = Math.max(340, this.terrainW * 3.4); /* preview v2 p1: shadow coverage */
       const shadowH = Math.max(300, holeLen * 0.75);
       sun.shadow.camera.left=-shadowW;sun.shadow.camera.right=shadowW;
       sun.shadow.camera.top=shadowH;sun.shadow.camera.bottom=-shadowH;
@@ -2595,21 +2595,21 @@ class GolfGame{
     this._allLights.push({light:sun,base:sunBase});
 
     // ④ フィルライト（影のコントラストを優しく保持）
-    const fillBase=(isRain?0.30:isFog?0.28:0.35)*Math.PI;
+    const fillBase=(isRain?0.30:isFog?0.28:0.12)*Math.PI; /* preview v2 p1 */
     const fill=new THREE.DirectionalLight(isRain?0x8899cc:0xb8d0e8,fillBase*bm);
     fill.position.set(-60,50,40);
     this.scene.add(fill);
     this._allLights.push({light:fill,base:fillBase});
 
     // ⑤ 後方補助
-    const backBase=(isRain?0.18:0.24)*Math.PI;
+    const backBase=(isRain?0.18:0.10)*Math.PI; /* preview v2 p1 */
     const back=new THREE.DirectionalLight(0x90a8b4,backBase*bm);
     back.position.set(0,30,90);
     this.scene.add(back);
     this._allLights.push({light:back,base:backBase});
 
     // ⑥ 地面反射光
-    const gndBase=(isRain?0.12:0.18)*Math.PI;
+    const gndBase=(isRain?0.12:0.08)*Math.PI; /* preview v2 p1 */
     const gnd=new THREE.DirectionalLight(0x3a7028,gndBase*bm);
     gnd.position.set(0,-20,0);
     this.scene.add(gnd);
@@ -2617,13 +2617,13 @@ class GolfGame{
 
     // ⑦ 晴天時の環境光ポイント
     if(isSunny&&!mob){
-      const skyFill=new THREE.DirectionalLight(0x5588ee,0.15*Math.PI*bm);
+      const skyFill=new THREE.DirectionalLight(0x5588ee,0.06*Math.PI*bm); /* preview v2 p1 */
       skyFill.position.set(0,200,0);
       this.scene.add(skyFill);
       this._allLights.push({light:skyFill,base:0.15*Math.PI});
     }
 
-    if(this.renderer)this.renderer.toneMappingExposure=Math.max(0.75,bm*0.92);
+    if(this.renderer)this.renderer.toneMappingExposure=Math.max(0.75,bm*1.18); /* preview v2 p1: exposure comp */
   }
   _buildSky(courseArg){
     const w=this.weather;
@@ -2641,11 +2641,11 @@ class GolfGame{
     } else if(w.type==="strongWind"){
       skyTop=0x2a4a7a; skyHorizon=0x6a8aaa; skyGround=0x2a3a1a;
     } else if(isCoastal){
-      skyTop=0x1a50a0; skyHorizon=0x5090d0; skyGround=0x284a20;
+      skyTop=0x253a6e; skyHorizon=0xd98a4a; skyGround=0x22301a; /* v4.20 パターン1: 海岸も夕景に統一 */
     } else if(isLinks){
-      skyTop=0x2a5a8a; skyHorizon=0x7aaac0; skyGround=0x3a4818;
+      skyTop=0x2c3f66; skyHorizon=0xdd9250; skyGround=0x2c3416; /* v4.20 パターン1: リンクスも夕景に統一 */
     } else {
-      skyTop=0x1a4a8a; skyHorizon=0x4a80c0; skyGround=0x2a4a18;
+      skyTop=0x232f5e; skyHorizon=0xd97e3f; skyGround=0x1f2a14; /* preview v2 p1: dusk sky */
     }
 
     // L1: スカイドーム（大球）/* v4.10 B1: 霧で漂白・縞化しないよう fog:false（グラデーションは後段のGLSLドームが担う） */
@@ -2674,7 +2674,7 @@ class GolfGame{
     // L4: 太陽（晴天・強風時）
     if(w.type==="sunny"||w.type==="strongWind"){
       const sunGeo=new THREE.SphereGeometry(w.type==="sunny"?22:16,16,10);
-      const sunCol=w.type==="sunny"?0xfff8c0:0xffe8a0;
+      const sunCol=w.type==="sunny"?0xffbe78:0xffe8a0; /* preview v2 p1 */
       const sunMat=new THREE.MeshBasicMaterial({color:sunCol,fog:false});
       const sunSphere=new THREE.Mesh(sunGeo,sunMat);
       sunSphere.position.set(180,320,-500);
@@ -2690,7 +2690,7 @@ class GolfGame{
     // L5: 雲（天候別・コース別）
     const cloudCount=this.isMobile?4:
       (w.type==="rain"?12:w.type==="fog"?3:w.type==="strongWind"?18:8);
-    const cloudCol=w.type==="rain"?0x3a3e4a:w.type==="fog"?0xbabcb8:0xf0f4ff;
+    const cloudCol=w.type==="rain"?0x3a3e4a:w.type==="fog"?0xbabcb8:0xffe8d0 /* preview v2 p1: warm clouds */;
     const cloudOpa=w.type==="rain"?0.82:w.type==="fog"?0.6:0.55;
     for(let i=0;i<cloudCount;i++){
       const cx=(Math.random()-0.5)*1200;
@@ -2785,6 +2785,7 @@ class GolfGame{
       const baseRiverLand = new THREE.Mesh(new THREE.PlaneGeometry(TW*8, TH*2.0), matRough);
       baseRiverLand.rotation.x = -Math.PI/2;
       baseRiverLand.position.set(0, -0.04, -TH/2);
+      baseRiverLand.receiveShadow = true; /* preview v2: rough base receives shadows */
       this.scene.add(baseRiverLand);
 
       const farRiver = new THREE.Mesh(new THREE.PlaneGeometry(TW*2.2, TH*1.8), matWater);
@@ -2826,6 +2827,7 @@ class GolfGame{
           if(s % 2 === 0) continue;
           const stM = new THREE.Mesh(new THREE.PlaneGeometry(fwWidth, bandD - 0.15), new THREE.MeshLambertMaterial({color: 0x276314}));
           stM.rotation.x = -Math.PI/2;
+          stM.receiveShadow = true; /* v4.20 パターン1: 刈り目帯も影を受ける */
           stM.position.set(0, 0.016, -(s + 0.5)*bandD);
           this.scene.add(stM);
         }
@@ -2851,6 +2853,7 @@ class GolfGame{
         for(const sd of [-1, 1]){
           const fc = new THREE.Mesh(new THREE.PlaneGeometry(4.0, TH*0.98), new THREE.MeshLambertMaterial({color: TODA_PALETTE.firstCut}));
           fc.rotation.x = -Math.PI/2;
+          fc.receiveShadow = true; /* v4.20 パターン1 */
           fc.position.set(sd*(fwWidth/2 + 2.0), 0.012, -TH/2);
           this.scene.add(fc);
         }
@@ -2869,6 +2872,7 @@ class GolfGame{
         for(const sd of [-1, 1]){
           const fc1 = new THREE.Mesh(new THREE.PlaneGeometry(4.0, leg1Length), new THREE.MeshLambertMaterial({color: TODA_PALETTE.firstCut}));
           fc1.rotation.x = -Math.PI/2;
+          fc1.receiveShadow = true; /* v4.20 パターン1 */
           fc1.position.set(sd*(leg1W/2 + 2.0), 0.012, -leg1Length/2);
           this.scene.add(fc1);
         }
@@ -2888,6 +2892,7 @@ class GolfGame{
         for(const sd of [-1, 1]){
           const fc2 = new THREE.Mesh(new THREE.PlaneGeometry(leg2W, 4.0), new THREE.MeshLambertMaterial({color: TODA_PALETTE.firstCut}));
           fc2.rotation.x = -Math.PI/2;
+          fc2.receiveShadow = true; /* v4.20 パターン1 */
           fc2.position.set(-leg2W/2 + 10, 0.015, cornerZ + sd*(leg2Depth/2 + 2.0));
           this.scene.add(fc2);
         }
@@ -2937,6 +2942,7 @@ class GolfGame{
 
       // ─── ティーグラウンド（OUT用・IN用） ───
       const teeA = new THREE.Mesh(new THREE.BoxGeometry(10, 0.25, 8), new THREE.MeshLambertMaterial({color: TODA_PALETTE.tee}));
+      teeA.receiveShadow = true; /* v4.20 パターン1 */
       teeA.position.set(0, 0.12, 0);
       this.scene.add(teeA);
       for(const mx of [-2.4, 2.4]){
@@ -2948,6 +2954,7 @@ class GolfGame{
       // IN用別ティー
       const inTeeCoord = hole.isIN ? teeCoord : {x:6, y:0.36, z:19};
       const teeB = new THREE.Mesh(new THREE.BoxGeometry(10, 0.25, 8), new THREE.MeshLambertMaterial({color: TODA_PALETTE.tee}));
+      teeB.receiveShadow = true; /* v4.20 パターン1 */
       teeB.position.set(inTeeCoord.x, 0.12, inTeeCoord.z);
       this.scene.add(teeB);
       for(const mx of [-2.4, 2.4]){
@@ -2962,10 +2969,12 @@ class GolfGame{
       
       // ① アクティブグリーン砲台マウンド（法面＋天面）
       const basePodium = new THREE.Mesh(new THREE.CylinderGeometry(gRadius, gRadius+5.0, gHeight, 32), matRough);
+      basePodium.receiveShadow = true; /* v4.20 パターン1 */
       basePodium.position.set(pinCoord.x, gHeight*0.5, pinCoord.z);
       this.scene.add(basePodium);
 
       const activeGreenMesh = new THREE.Mesh(new THREE.CylinderGeometry(gRadius*0.92, gRadius*0.92, 0.30, 32), matGreen);
+      activeGreenMesh.receiveShadow = true; /* v4.20 パターン1 */
       activeGreenMesh.position.set(pinCoord.x, gHeight + 0.15, pinCoord.z);
       this.scene.add(activeGreenMesh);
       this.greenPos = {x: pinCoord.x, z: pinCoord.z, r: gRadius*0.92, y: gHeight};
@@ -2978,10 +2987,12 @@ class GolfGame{
 
       // ② サブグリーン砲台マウンド（フラッグなしBグリーン）
       const subPodium = new THREE.Mesh(new THREE.CylinderGeometry(gRadius*0.95, gRadius+4.5, gHeight*0.95, 28), matRough);
+      subPodium.receiveShadow = true; /* v4.20 パターン1 */
       subPodium.position.set(subPinCoord.x, gHeight*0.48, subPinCoord.z);
       this.scene.add(subPodium);
 
       const subGreenMesh = new THREE.Mesh(new THREE.CylinderGeometry(gRadius*0.88, gRadius*0.88, 0.15, 28), matSubGreen);
+      subGreenMesh.receiveShadow = true; /* v4.20 パターン1 */
       subGreenMesh.position.set(subPinCoord.x, gHeight*0.95 + 0.05, subPinCoord.z);
       this.scene.add(subGreenMesh);
 
@@ -3007,6 +3018,7 @@ class GolfGame{
       if(ph === 3){
         const bkZ = pinCoord.z + 14;
         const bA = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 6.2, 0.8, 24), matBunker);
+        bA.receiveShadow = true; /* v4.20 パターン1 */
         bA.position.set(pinCoord.x, 0.35, bkZ);
         this.scene.add(bA);
         window._bunkerZones.push({x: pinCoord.x, z: bkZ, r: 6.0, radius: 6.0});
@@ -3017,6 +3029,7 @@ class GolfGame{
         this._addTree(0, -190, gen, 3.0, "broad");
         const dropZ = pinCoord.z - 12;
         const dropSlope = new THREE.Mesh(new THREE.BoxGeometry(TW*0.6, 1.5, 16), matRough);
+        dropSlope.receiveShadow = true; /* v4.20 パターン1 */
         dropSlope.rotation.x = 0.25;
         dropSlope.position.set(pinCoord.x, -0.2, dropZ);
         this.scene.add(dropSlope);
@@ -3054,6 +3067,7 @@ class GolfGame{
           const bx = pinCoord.x + Math.sin(ang)*bkDist;
           const bz = pinCoord.z + Math.cos(ang)*bkDist;
           const bkMesh = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 5.0, 0.9, 20), matBunker);
+          bkMesh.receiveShadow = true; /* v4.20 パターン1 */
           bkMesh.position.set(bx, 0.4, bz);
           this.scene.add(bkMesh);
           window._bunkerZones.push({x: bx, z: bz, r: 4.8, radius: 4.8});
@@ -3123,12 +3137,14 @@ class GolfGame{
     const add=(geo,color,py,px,pz,opts={})=>{
       const mat=new THREE.MeshLambertMaterial({color,...opts});
       const m=new THREE.Mesh(geo,mat);
+      m.receiveShadow=true; /* v4.20 パターン1: 地面が影を受ける */
       m.rotation.x=-Math.PI/2;m.position.set(px||0,py||0,pz||-TH/2);
       this.scene.add(m);return m;
     };
     const addC=(geo,color,opts={})=>{
       const mat=new THREE.MeshLambertMaterial({color,...opts});
       const m=new THREE.Mesh(geo,mat);
+      m.receiveShadow=true; /* v4.20 パターン1: 地面が影を受ける */
       this.scene.add(m);return m;
     };
     // ★ 水面用（半透明・リフレクション風）
@@ -4024,7 +4040,7 @@ const bCntGreen=Math.min(bunkerCount,5);
       new THREE.MeshLambertMaterial({color:rain?0x33241a:0x402a14})
     );
     trunk.position.set(x,gy+trunkH*0.5,z);
-    trunk.castShadow=!mob; trunk.receiveShadow=!mob;
+    trunk.castShadow=true; trunk.receiveShadow=true; /* v4.20 パターン1: モバイルでも影を出す */
     this.scene.add(trunk);
     const greens=rain?[0x14351a,0x1a4520,0x0f2c14]:[0x1d4d16,0x27631d,0x2e6b22,0x1a4218];
     const nCl=(type==="pine")?4:3;
@@ -4039,7 +4055,7 @@ const bCntGreen=Math.min(bunkerCount,5);
         gy+trunkH+cr*0.55+k*(type==="pine"?1.15:0.8)*sm,
         z+(rnd()-0.5)*crownR*0.9);
       blob.scale.y=0.82;
-      blob.castShadow=!mob;
+      blob.castShadow=true; /* v4.20 パターン1: モバイルでも影を出す */
       this.scene.add(blob);
     }
   }
@@ -4683,7 +4699,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       }
       trunks.count = ti; blobs.count = bi;
       if(blobs.instanceColor) blobs.instanceColor.needsUpdate = true;
-      trunks.castShadow = !mob; blobs.castShadow = !mob;
+      trunks.castShadow = true; blobs.castShadow = true; /* v4.20 パターン1: モバイルでも影を出す */
       this.scene.add(trunks); this.scene.add(blobs);
     }
     /* コーナー内側の林 (ショートカット防止) */
@@ -5058,7 +5074,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     if(this.sunLight && this.sunLight.target){
       const bp = this.ball.position;
       this.sunLight.target.position.set(bp.x * 0.5, 0, bp.z);
-      this.sunLight.position.set(bp.x * 0.5 + 80, 220, bp.z + 60);
+      this.sunLight.position.set(bp.x * 0.5 + 300, 82, bp.z + 120); /* preview v2 p1: low sun */
     }
     const bp=this.ball.position;
     const pin=this.pinPos||new THREE.Vector3(0,0,-100);
@@ -6702,6 +6718,14 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         }
         if(!_ctxLost){
           this.renderer.render(this.scene,this.camera);
+          /* v4.19: 最初のフレームが描けたらローディング表示を消す（対戦開始直後の黒画面防止）。
+             従来は読み込み完了と同時に消していたため、シーン構築・シェーダ準備の間は真っ黒な
+             画面が見えていた。初フレーム描画の直後に消すので、見えるのはコースの絵になる。 */
+          if(window.__goatVeilFirstFrame === false){
+            window.__goatVeilFirstFrame = true;
+            var _ld = document.getElementById("loading");
+            if(_ld) _ld.style.display = "none";
+          }
         }
         window.__goatDiagLoopOk("golfLoop");
       }catch(e){console.warn("Loop error:",e);window.__goatDiagLoopErr("golfLoop", e);}
@@ -6787,12 +6811,14 @@ function buildStartUI(){
 window.addEventListener("load",()=>{
   const isGoatDuel = new URLSearchParams(location.search).get("goat") === "1";
   if(isGoatDuel){
-    const ld = document.getElementById("loading");
-    if(ld) ld.style.display = "none";
+    /* v4.19: 対戦開始直後の黒画面を防ぐため、最初のフレームが描かれるまでローディング表示を残す。
+       描画が始まらない場合の安全策として25秒で必ず消す（従来の見た目と同一に戻る）。 */
+    window.__goatVeilFirstFrame = false;
+    setTimeout(()=>{ if(window.__goatVeilFirstFrame === false){ const ld=document.getElementById("loading"); if(ld) ld.style.display="none"; } }, 25000);
   }
   var isWarm = new URLSearchParams(location.search).get("warmup") === "1";
   setTimeout(()=>{
-    document.getElementById("loading").style.display="none";
+    if(!isGoatDuel) document.getElementById("loading").style.display="none";
     if(isWarm) return; /* v4.5: 先読み時はレンダラ/シーンを作らない（スクリプトのキャッシュだけを温める） */
     if(!isGoatDuel) document.getElementById("startScreen").style.display="flex";
     game.init();
@@ -7015,7 +7041,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       var c = courseArg || this.currentCourse || {};
       var sv = c.skyVariant || "";
-      var topCol = [0.09, 0.28, 0.64], horCol = [0.58, 0.78, 0.94], sunCol = [1.0, 0.94, 0.78];
+      var topCol = [0.15, 0.28, 0.55], horCol = [0.90, 0.56, 0.30], sunCol = [1.0, 0.72, 0.42]; /* preview v2 p1: dusk dome */
       if(sv === "yomi_dusk"){
         topCol = [0.06, 0.04, 0.16]; horCol = [0.36, 0.16, 0.42]; sunCol = [0.95, 0.55, 0.85];
       } else if(sv === "amaterasu_eclipse"){
@@ -7036,7 +7062,7 @@ document.addEventListener('DOMContentLoaded', function () {
             uTop: { value: new THREE.Vector3().fromArray(topCol) },
             uHor: { value: new THREE.Vector3().fromArray(horCol) },
             uSun: { value: new THREE.Vector3().fromArray(sunCol) },
-            uSunDir: { value: new THREE.Vector3(0.32, 0.48, -0.82).normalize() }
+            uSunDir: { value: new THREE.Vector3(0.885, 0.242, 0.354).normalize() } /* preview v2 p1: match low sun */
           },
           vertexShader: "varying vec3 vW; void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }",
           fragmentShader: [
@@ -7044,7 +7070,7 @@ document.addEventListener('DOMContentLoaded', function () {
             "void main(){",
             "  vec3 d = normalize(vW);",
             "  float h = clamp(d.y * 1.15 + 0.08, 0.0, 1.0);",
-            "  vec3 col = mix(uHor, uTop, pow(h, 0.6));",
+            "  vec3 col = mix(uHor, uTop, pow(h, 0.4));", /* preview v2 p1: faster to zenith blue */
             "  float s = max(dot(d, uSunDir), 0.0);",
             "  col += uSun * pow(s, 18.0) * 0.55 + uSun * smoothstep(0.996, 0.9996, s) * 1.4;",
             "  gl_FragColor = vec4(col, 1.0);",
@@ -7059,8 +7085,8 @@ document.addEventListener('DOMContentLoaded', function () {
         var pmrem = new THREE.PMREMGenerator(this.renderer);
         pmrem.compileEquirectangularShader();
         var es = new THREE.Scene();
-        es.add(new THREE.Mesh(new THREE.SphereGeometry(30, 16, 12), new THREE.MeshBasicMaterial({ color:0x8ec5fc, side:THREE.BackSide })));
-        var sb = new THREE.Mesh(new THREE.SphereGeometry(4, 10, 10), new THREE.MeshBasicMaterial({ color:0xfff3cc }));
+        es.add(new THREE.Mesh(new THREE.SphereGeometry(30, 16, 12), new THREE.MeshBasicMaterial({ color:0x8093cc, side:THREE.BackSide }) /* preview v2 p1: dusk IBL */));
+        var sb = new THREE.Mesh(new THREE.SphereGeometry(4, 10, 10), new THREE.MeshBasicMaterial({ color:0xffc98a }) /* preview v2 p1: dusk IBL sun */);
         sb.position.set(12, 18, -16); es.add(sb);
         this._cachedEnvMap = pmrem.fromScene(es, 0.04).texture;
         pmrem.dispose();
