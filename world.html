@@ -4,9 +4,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.20 | WebGL版</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.24 | WebGL版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap');
 
     * {
       box-sizing: border-box;
@@ -186,7 +188,8 @@
     }
 
     .cslot {
-      padding: 6px 10px;
+      position: relative;
+      padding: 12px 12px;
       border-radius: 10px;
       cursor: pointer;
       font-size: 11.5px;
@@ -209,6 +212,17 @@
       box-shadow: 0 0 14px rgba(255, 208, 90, 0.35);
     }
 
+    /* v4.24: 選択中のクラブを「✓」バッジでも示す（色だけに頼らない区別。::after の絶対配置でボタンサイズは不変） */
+    .cslot.active::after {
+      content: "✓";
+      position: absolute; top: -9px; right: 0;
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #ffd875, #c98e1e); color: #241a05;
+      font-size: 12px; font-weight: 900; line-height: 1; pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
     #clubDesc {
       font-size: 11px;
       color: #ffd875;
@@ -221,7 +235,7 @@
     }
 
     .abtn {
-      padding: 5px 10px;
+      padding: 12px 12px;
       border-radius: 8px;
       font-size: 11px;
       font-weight: 800;
@@ -240,6 +254,13 @@
     .abtn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
+    }
+
+    /* v4.24: キーボード操作時のフォーカスを見やすくする（位置・サイズ不変） */
+    :focus-visible {
+      outline: 2px solid #ffd875;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(255, 216, 117, 0.25);
     }
 
     /* 右下：高精度レーダーミニマップ（タップで瞬間移動対応） */
@@ -455,7 +476,7 @@
       color: #d8e4ff;
       border: 1.5px solid rgba(130, 175, 255, 0.45);
       border-radius: 999px;
-      padding: 9px 14px;
+      padding: 13px 16px;
       font-size: 12px;
       font-weight: 900;
       cursor: pointer;
@@ -489,7 +510,7 @@
       color: #fff6dc;
       border: 1.5px solid #ffd875;
       border-radius: 999px;
-      padding: 10px 22px;
+      padding: 13px 24px;
       font-size: 13px;
       font-weight: 900;
       letter-spacing: 0.5px;
@@ -532,7 +553,7 @@
       }
 
       .cslot {
-        padding: 5px 7px;
+        padding: 11px 9px;
         font-size: 10.5px;
       }
 
@@ -541,7 +562,7 @@
       }
 
       .abtn {
-        padding: 5px 7px;
+        padding: 11px 9px;
         font-size: 10px;
       }
 
@@ -611,12 +632,12 @@
 
       #dashToggleBtn,
       #boostStepBtn {
-        padding: 9px 11px;
+        padding: 12px 12px;
         font-size: 11px;
       }
 
       #chargeBtn {
-        padding: 10px 15px;
+        padding: 12px 16px;
         font-size: 12px;
       }
 
@@ -723,6 +744,13 @@
       }
     }
 
+    /* v4.24: 動きを減らす設定のときトースト演出を静止表示にする（既定の見た目・挙動は不変） */
+    @media (prefers-reduced-motion: reduce) {
+      .toast {
+        animation: none !important;
+      }
+    }
+
     /* =====================================================================
        LAYOUT FIX v4.0（④スマホ縦画面：上下HUDの重なり解消／①上段パネルの両立）
        ・3Dフィールド描画は一切縮小しない。HUDの配置とサイズのみを最適化する。
@@ -736,15 +764,15 @@
       .mini-stats { flex-wrap: wrap; gap: 3px 8px; font-size: 10px; margin-top: 4px; padding-top: 4px; }
       #topRightHud { max-width: 214px; }
       .club-bar { flex-wrap: wrap; justify-content: flex-end; }
-      .cslot { font-size: 10px; padding: 4px 6px; }
+      .cslot { font-size: 10px; padding: 10px 8px; }
       /* 下段：スティック／ゲージ／アクションドック／ミニマップを段差配置にして重ねない */
       #bottomLeftHud { bottom: 62px; width: 190px; }
       #vStickWrap { bottom: 200px; left: 10px; width: 104px; }
       #vStickBase { width: 96px; height: 96px; }
       #vStickHint { font-size: 9px; padding: 2px 7px; }
       #fireControls { bottom: 10px; left: 0; transform: none; width: 100%; justify-content: center; padding: 0 4px; box-sizing: border-box; }
-      #dashToggleBtn, #boostStepBtn { font-size: 10.5px; padding: 7px 9px; flex-shrink: 1; }
-      #chargeBtn { font-size: 11px; padding: 8px 12px; flex-shrink: 1; white-space: normal; text-align: center; line-height: 1.25; }
+      #dashToggleBtn, #boostStepBtn { font-size: 10.5px; padding: 11px 10px; flex-shrink: 1; }
+      #chargeBtn { font-size: 11px; padding: 11px 13px; flex-shrink: 1; white-space: normal; text-align: center; line-height: 1.25; }
       #miniWrap { bottom: 62px; }
       #minimap { width: 104px; height: 104px; }
       .map-legend { font-size: 8.5px; white-space: normal; }
@@ -752,18 +780,18 @@
       #minimap { width: 104px !important; height: 104px !important; }
     }
   </style>
-<script src="assets/diag-overlay.js?v=4.20"></script>
+<script src="assets/diag-overlay.js?v=4.24"></script>
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.20",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.20",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.20",
+ "three": "./assets/lib/r180/three.module.js?v=4.24",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.24",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.24",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.20",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.20"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.24",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.24"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.20"></script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.24"></script>
 </head>
 
 <body>
@@ -793,13 +821,13 @@
       <span style="color:#ffd478;">🔥 炎パワー（飛距離・安定力）</span>
       <span id="powerNum" style="color:#fff;">100%</span>
     </div>
-    <canvas id="flameCanvas" width="248" height="22"></canvas>
+    <canvas id="flameCanvas" width="248" height="22" role="img" aria-label="炎パワーのゲージ。炎の量が飛距離と安定力を表します"></canvas>
     <div class="thread-wrap">
       <div class="gauge-head">
         <span style="color:#cbb2ff;">🕸 運命の糸（メンタル集中力）</span>
         <span id="mentalNum" style="color:#e9dfff;">100%</span>
       </div>
-      <canvas id="threadCanvas" width="248" height="14"></canvas>
+      <canvas id="threadCanvas" width="248" height="14" role="img" aria-label="運命の糸のゲージ。メンタルの集中力を表します"></canvas>
     </div>
   </div>
 
@@ -821,7 +849,7 @@
 
   <!-- 右下：ミニマップ（タップで瞬間移動対応） -->
   <div id="miniWrap" class="hud-card" title="ミニマップの任意の場所をクリック／タップするとそこへ瞬時に高速移動します">
-    <canvas id="minimap" width="156" height="156"></canvas>
+    <canvas id="minimap" width="156" height="156" role="img" aria-label="ミニマップ。エリアの地形と、残影・施設・決戦門の位置を示します"></canvas>
     <div class="map-legend">🟣残影 🟢浄化 🟡施設 🔴決戦門 (タップ瞬移)</div>
   </div>
 

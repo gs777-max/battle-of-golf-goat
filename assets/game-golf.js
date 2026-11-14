@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.20');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.24');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -1363,6 +1363,18 @@ class ShotController{
     this.niceShotLabel="";
     this.clubMaxDist=0; // 現在クラブの最大飛距離（推定距離表示用）
   }
+  /* v4.24 C-6: パワーメーターの要素参照を初回にキャッシュし、毎フレームの getElementById をやめる。
+     対象は golf.html 内の静的DOM。 */
+  _cacheEls(){
+    if(!this._elNeedle) this._elNeedle=document.getElementById("powerNeedle");
+    if(!this._elPvn) this._elPvn=document.getElementById("powerValueNum");
+    if(!this._elPzh) this._elPzh=document.getElementById("powerZoneHint");
+    if(!this._elIz) this._elIz=document.getElementById("impactZone");
+    if(!this._elIzu) this._elIzu=document.getElementById("impactZoneUNS");
+    if(!this._elSg) this._elSg=document.getElementById("shotGuide");
+    if(!this._elPvr) this._elPvr=document.getElementById("powerValueRow");
+    if(!this._elPr) this._elPr=document.getElementById("powerRow");
+  }
   /* 難易度（v4.16・方式C）: 第2段の針速と UNS 半幅だけを変える。ノーマルは現行定数そのもの。
      難易度は対戦ブリッジが window.GOAT_BATTLE.difficulty に載せる（未設定時はノーマル）。 */
   _diffParams(){
@@ -1373,31 +1385,33 @@ class ShotController{
     return { speed:1.5, unsHalf:0.03 };
   }
   reset(){
+    this._cacheEls();
     this.phase=0;this.power=0;this.accuracy=0;this.niceShotBonus=0;
     this.needlePos=0;this.needleDir=1;this.animating=false;
     if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;}
-    const n=document.getElementById("powerNeedle");if(n)n.style.left="0%";
-    const iz=document.getElementById("impactZone");if(iz)iz.style.display="none";
-    const izu=document.getElementById("impactZoneUNS");if(izu)izu.style.display="none";
-    const sg=document.getElementById("shotGuide");if(sg)sg.textContent="タップ / Space でショット";
+    const n=this._elNeedle;if(n)n.style.left="0%";
+    const iz=this._elIz;if(iz)iz.style.display="none";
+    const izu=this._elIzu;if(izu)izu.style.display="none";
+    const sg=this._elSg;if(sg)sg.textContent="タップ / Space でショット";
     // パワー数値表示をOFF、swinging クラスも除去
-    const pvr=document.getElementById("powerValueRow");if(pvr)pvr.style.display="none";
-    const pr=document.getElementById("powerRow");if(pr)pr.classList.remove("swinging");
-    const pvn=document.getElementById("powerValueNum");if(pvn){pvn.textContent="--%";pvn.style.color="#fff";}
-    const pzh=document.getElementById("powerZoneHint");if(pzh)pzh.textContent="";
+    const pvr=this._elPvr;if(pvr)pvr.style.display="none";
+    const pr=this._elPr;if(pr)pr.classList.remove("swinging");
+    const pvn=this._elPvn;if(pvn){pvn.textContent="--%";pvn.style.color="#fff";}
+    const pzh=this._elPzh;if(pzh)pzh.textContent="";
   }
   startSwing(){
     if(this.phase!==0)return;
+    this._cacheEls();
     this.phase=1;this.animating=true;this.needlePos=0;this.needleDir=1;
     this.UNS_HALF=this._diffParams().unsHalf; // 難易度に応じた JUST 帯（ノーマルは現行 ±3%）
-    document.getElementById("shotGuide").textContent="⬆️ パワー最大点でもう一度！";
-    const iz=document.getElementById("impactZone");if(iz)iz.style.display="none";
-    const izu=document.getElementById("impactZoneUNS");if(izu)izu.style.display="none";
+    if(this._elSg)this._elSg.textContent="⬆️ パワー最大点でもう一度！";
+    const iz=this._elIz;if(iz)iz.style.display="none";
+    const izu=this._elIzu;if(izu)izu.style.display="none";
     // パワー数値表示をON、powerRowにスペース確保クラスを付与
-    const pvr=document.getElementById("powerValueRow");if(pvr)pvr.style.display="flex";
-    const pr=document.getElementById("powerRow");if(pr)pr.classList.add("swinging");
-    const pvn=document.getElementById("powerValueNum");if(pvn){pvn.textContent="0%";pvn.style.color="#fff";}
-    const pzh=document.getElementById("powerZoneHint");if(pzh)pzh.textContent="";
+    const pvr=this._elPvr;if(pvr)pvr.style.display="flex";
+    const pr=this._elPr;if(pr)pr.classList.add("swinging");
+    const pvn=this._elPvn;if(pvn){pvn.textContent="0%";pvn.style.color="#fff";}
+    const pzh=this._elPzh;if(pzh)pzh.textContent="";
     this.lastTime=performance.now();this._anim();
   }
   _anim(){
@@ -1407,10 +1421,10 @@ class ShotController{
     if(this.needlePos>=1){this.needlePos=1;this.needleDir=-1;}
     if(this.needlePos<=0){this.needlePos=0;this.needleDir=1;}
     const pct=Math.round(this.needlePos*100);
-    document.getElementById("powerNeedle").style.left=pct+"%";
+    if(this._elNeedle)this._elNeedle.style.left=pct+"%";
     // リアルタイムパワー数値＋推定飛距離表示
-    const pvn=document.getElementById("powerValueNum");
-    const pzh=document.getElementById("powerZoneHint");
+    const pvn=this._elPvn;
+    const pzh=this._elPzh;
     if(this.phase===1&&pvn){
       // 推定飛距離 = クラブmax × パワー%
       const estYd=this.clubMaxDist?Math.round(this.clubMaxDist*(pct/100)):"?";
@@ -1432,23 +1446,25 @@ class ShotController{
   }
   setPower(){
     if(this.phase!==1)return;
+    this._cacheEls();
     this.phase=2;this.power=Math.round(this.needlePos*100);
     // インパクトゾーン表示
     const c=this.UNS_CENTER,nh=this.NS_HALF;
-    const iz=document.getElementById("impactZone");
+    const iz=this._elIz;
     if(iz){iz.style.left=((c-nh)*100)+"%";iz.style.width=(nh*2*100)+"%";iz.style.display="block";}
-    const izu=document.getElementById("impactZoneUNS");
+    const izu=this._elIzu;
     if(izu){izu.style.left=((c-this.UNS_HALF)*100)+"%";izu.style.width=(this.UNS_HALF*2*100)+"%";izu.style.display="block";}
     // パワー確定表示
-    const pvn=document.getElementById("powerValueNum");
+    const pvn=this._elPvn;
     if(pvn){pvn.textContent=this.power+"%";pvn.style.color="#ffd700";}
-    const pzh=document.getElementById("powerZoneHint");
+    const pzh=this._elPzh;
     if(pzh){pzh.textContent="★ 中央でUNS +50%！";pzh.style.color="#ff88ff";}
-    document.getElementById("shotGuide").textContent=`POWER ${this.power}%  ▶ タイミング！`;
+    if(this._elSg)this._elSg.textContent=`POWER ${this.power}%  ▶ タイミング！`;
     this.needleSpeed=this._diffParams().speed; // 難易度に応じた第2段の針速（ノーマルは現行 1.5）
   }
   setImpact(){
     if(this.phase!==2)return;
+    this._cacheEls();
     this.animating=false;if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;}
     const diff=Math.abs(this.needlePos-this.UNS_CENTER);
     // ナイスショット判定
@@ -1464,12 +1480,12 @@ class ShotController{
       this.niceShotLabel=miss?"❌ MISS":"😐 OK";
       this.accuracy=miss?30:55;
     }
-    const iz=document.getElementById("impactZone");if(iz)iz.style.display="none";
-    const izu=document.getElementById("impactZoneUNS");if(izu)izu.style.display="none";
-    document.getElementById("shotGuide").textContent=this.niceShotLabel;
+    const iz=this._elIz;if(iz)iz.style.display="none";
+    const izu=this._elIzu;if(izu)izu.style.display="none";
+    if(this._elSg)this._elSg.textContent=this.niceShotLabel;
     // パワー数値にニーショット結果を表示
-    const pvn=document.getElementById("powerValueNum");
-    const pzh=document.getElementById("powerZoneHint");
+    const pvn=this._elPvn;
+    const pzh=this._elPzh;
     if(pvn){pvn.textContent=this.power+"%";}
     if(pzh){
       if(this.niceShotBonus>=0.50){pzh.textContent="🌟 UNS +50%";pzh.style.color="#ff88ff";}

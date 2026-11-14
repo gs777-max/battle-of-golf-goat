@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.20）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.24）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -25,8 +25,10 @@
   }
 })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Noto+Sans+JP:wght@300;400;600;800;900&family=Noto+Serif+JP:wght@500;700;900&display=swap">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Noto+Sans+JP:wght@300;400;600;800;900&family=Noto+Serif+JP:wght@500;700;900&display=swap');
   :root {
     --bg-deep: #05060c;
     --bg-panel: rgba(12, 15, 28, 0.86);
@@ -66,7 +68,7 @@
     #topbar { height: 44px; padding: 0 8px; gap: 6px; }
     .logo-mark { font-size: 13px; letter-spacing: 1px; }
     #status { display: none; }
-    .tbtn { padding: 5px 8px; font-size: 11px; }
+    .tbtn { padding: 11px 9px; font-size: 11px; }
     #stage { top: 44px; bottom: 52px; }
     #narr { height: 52px; min-height: 52px; max-height: 52px; padding: 4px 12px; gap: 10px; overflow: hidden; }
     .narr-badge { min-width: 78px; padding: 2px 6px; }
@@ -82,7 +84,7 @@
     #topbar { height: 38px; padding: 0 8px; gap: 5px; }
     .logo-mark { font-size: 12px; letter-spacing: 1px; }
     #status { display: none; }
-    .tbtn { padding: 4px 7px; font-size: 10.5px; }
+    .tbtn { padding: 8px 8px; font-size: 10.5px; }
     #stage { top: 38px; bottom: 36px; }
     #narr { height: 36px; min-height: 36px; max-height: 36px; padding: 2px 10px; gap: 8px; overflow: hidden; }
     .narr-badge { min-width: 70px; padding: 2px 5px; flex-direction: row; gap: 4px; }
@@ -114,7 +116,7 @@
   .tbtn {
     background: rgba(26, 31, 56, 0.85); color: var(--text);
     border: 1px solid rgba(130, 145, 195, 0.35); border-radius: 8px;
-    padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 12px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
     white-space: nowrap; transition: all 0.18s ease;
     display: inline-flex; align-items: center; gap: 5px;
   }
@@ -132,8 +134,10 @@
     background: linear-gradient(135deg, #7c1d2e 0%, #490d19 100%);
     border-color: #ff7588; color: #ffe6ea; font-weight: 800;
   }
-  .tbtn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .tbtn:disabled { color: #9aa3c0; background: rgba(26,31,56,0.45); border-color: rgba(130,145,195,0.18); cursor: not-allowed; transform: none; }
 
+  /* v4.24: キーボード操作時のフォーカスを見やすくする（位置・サイズ不変） */
+  :focus-visible { outline: 2px solid #ffd875; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(255,216,117,0.25); }
   /* ===== メイン3Dステージ（world.html / golf.html） ===== */
   #stage {
     position: fixed; top: 54px; bottom: 68px; left: 0; right: 0; z-index: 1;
@@ -225,6 +229,16 @@
     border-color: var(--gold);
     background: linear-gradient(145deg, rgba(48,38,16,0.72) 0%, rgba(22,24,48,0.9) 100%);
     box-shadow: 0 0 28px rgba(255,205,85,0.28);
+    overflow: visible;
+  }
+  /* v4.24: 選んだモードを「✓ 選択中」バッジで明示する（.char-box.sel の前例と同じ方式。
+     絶対配置でカード上部にはみ出し、カードのサイズは変えない。はみ出し11pxはグリッド間隔16pxの範囲内） */
+  .mode-sel-badge {
+    position: absolute; top: -11px; right: 14px; z-index: 2;
+    padding: 2px 12px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+    background: linear-gradient(135deg, #ffd875, #c98e1e); color: #241a05;
+    font-size: 11px; font-weight: 900; letter-spacing: 1px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
   }
   .mode-card .mt { font-size: 17px; font-weight: 900; color: var(--gold-bright); display: flex; justify-content: space-between; }
   .mode-card .md { font-size: 12px; color: var(--text-sub); line-height: 1.7; margin-top: 7px; }
@@ -324,9 +338,10 @@
     border-radius: 0 0 11px 11px; background: #141a30; box-shadow: 0 14px 28px rgba(0,0,0,0.55); overflow: hidden;
   }
   .pdd-opt {
-    min-height: 47px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    min-height: 47px; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 10px 14px; font-size: 15px; font-weight: 700; color: #e8ecf7; cursor: pointer;
-    border-top: 1px solid rgba(255,255,255,0.07);
+    background: transparent; border: none; border-top: 1px solid rgba(255,255,255,0.07);
+    font-family: inherit; text-align: left;
   }
   .pdd-opt.sel { color: var(--gold-bright); background: rgba(255,200,60,0.12); }
   .pdd-check { color: var(--gold-bright); flex: none; }
@@ -354,6 +369,10 @@
   }
   .modal-back.show { display: flex; animation: fadeIn 0.22s ease-out; }
   @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+  /* v4.24: 動きを減らす設定のとき演出アニメーションを静止表示にする（既定の見た目・挙動は不変） */
+  @media (prefers-reduced-motion: reduce) {
+    .modal-back.show, .char-box.tap-flash { animation: none !important; }
+  }
   .modal-win {
     width: 100%; max-width: 1020px; max-height: 88vh; display: flex; flex-direction: column;
     background: linear-gradient(170deg, rgba(18,22,44,0.96) 0%, rgba(9,11,24,0.98) 100%);
@@ -368,7 +387,7 @@
   .modal-title { font-family: 'Noto Serif JP', serif; font-size: 20px; font-weight: 900; color: var(--gold-bright); }
   .modal-close {
     background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
-    color: #fff; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+    color: #fff; border-radius: 8px; padding: 14px 16px; font-size: 13px; cursor: pointer;
   }
   .modal-close:hover { background: rgba(255,77,90,0.35); border-color: var(--crimson); }
   .modal-tabs {
@@ -376,7 +395,7 @@
     background: rgba(6,8,18,0.65); border-bottom: 1px solid rgba(255,255,255,0.08);
   }
   .mtab {
-    padding: 7px 15px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    padding: 14px 18px; border-radius: 999px; font-size: 12px; font-weight: 700;
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
     color: var(--text-sub); cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
@@ -446,7 +465,7 @@
     .logo-mark { font-size: 11px; letter-spacing: 0; }
     .area-pill { font-size: 10px; padding: 2px 7px; }
     .nav-group { gap: 5px; }
-    .tbtn { padding: 4px 7px; font-size: 10.5px; }
+    .tbtn { padding: 11px 9px; font-size: 10.5px; }
   }
 </style>
 <style>
@@ -457,7 +476,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.20"></script>
+<script src="assets/diag-overlay.js?v=4.24"></script>
 </head>
 <body>
 
@@ -513,12 +532,13 @@
       一打の波動で残影を浄化し、伝説の王者たちと魂のラウンドを交わし、天岩戸の光を取り戻せ。
     </div>
     <div class="modes">
-      <div class="mode-card sel" id="modeNormal">
+      <div class="mode-card sel" id="modeNormal" tabindex="0">
+        <span class="mode-sel-badge">✓ 選択中</span>
         <div class="mt"><span>🏌️ 通常モード（王道神話本編）</span><span style="font-size:12px;color:var(--cyan)">STANDARD</span></div>
         <div class="md">設計書どおりの完全バランス。ボールと賞金を管理し、全11枠ギアと神器を集め、18本の運命の糸とマルチラスボス分岐を歩む没入の旅。</div>
         <div class="saveinfo" id="saveInfoNormal"></div>
       </div>
-      <div class="mode-card" id="modeGoat">
+      <div class="mode-card" id="modeGoat" tabindex="0">
         <div class="mt"><span>👑 GOATモード（神装完成・無敵）</span><span style="font-size:12px;color:var(--gold)">INVINCIBLE</span></div>
         <div class="md">開始からランク最高位「グランドスラマー」／パワー＆メンタル常時100%無敵／三種の神器＋オリンポス8神器の「神装完成」＆ボール無限。全エリア即時解放！</div>
         <div class="saveinfo" id="saveInfoGoat"></div>
@@ -531,7 +551,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.20【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.24【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -2245,15 +2265,28 @@ function startGolfBattle(customTarget){
 
 /* v4.5: 対戦起動ウォッチドッグ。golf からの hello が来ない（CDN失敗等）場合、
    1回だけ自動で読み直し、それでも駄目ならワールド（生存中）へ戻す。タイトルへは落とさない。 */
-function __v45Toast(msg){
+/* v4.24: 対戦起動の最終失敗時、トースト内に「もう一度試す」ボタンを付ける。
+   ボタンは onRetry（直前の対戦をもう一度起動する）を呼ぶ。自動消去 4.2秒は従来どおり。 */
+function __v45Toast(msg, onRetry){
   var t = document.getElementById("v45Toast");
   if(!t){
     t = document.createElement("div");
     t.id = "v45Toast";
+    t.setAttribute("role", "status");
+    t.setAttribute("aria-live", "polite");
     t.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,12,26,.94);border:1px solid #c9a227;color:#ffe9a8;font-size:13.5px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);display:none;max-width:92vw;text-align:center;";
     document.body.appendChild(t);
   }
-  t.textContent = msg;
+  t.textContent = "";
+  t.appendChild(document.createTextNode(msg));
+  if(typeof onRetry === "function"){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "もう一度試す";
+    b.style.cssText = "margin-left:12px;padding:6px 14px;border-radius:8px;border:1px solid #c9a227;background:rgba(255,216,117,.16);color:#ffe9a8;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;";
+    b.onclick = function(){ clearTimeout(t._tm); t.style.display = "none"; onRetry(); };
+    t.appendChild(b);
+  }
   t.style.display = "block";
   clearTimeout(t._tm);
   t._tm = setTimeout(function(){ t.style.display = "none"; }, 4200);
@@ -2278,7 +2311,9 @@ function __armBattleWatchdog(url){
       gf.src = url;
       window.__bwTimer = setTimeout(check, 15000);
     } else {
-      __v45Toast("対戦を開始できませんでした。ワールドに戻ります");
+      __v45Toast("対戦を開始できませんでした。ワールドに戻ります", function(){
+        if(window.__bwLastTgt) launchGolfIframe(window.__bwLastTgt, window.__bwLastChar || undefined);
+      });
       enterWorld(false);
     }
   };
@@ -2290,6 +2325,8 @@ function launchGolfIframe(tgt, overrideCharId){
   /* v4.5: 二重発火ガード（二度押し・ゲート到達とボタンの競合で重い golf 文書の読込がやり直されるのを防ぐ） */
   if(window.__launchLock && Date.now() - window.__launchLock < 2500) return;
   window.__launchLock = Date.now();
+  window.__bwLastTgt = tgt;
+  window.__bwLastChar = overrideCharId || null;
   var useCharId = overrideCharId || S.activeCharId;
   var ch = charById(useCharId);
   var gs = calcGearStats(S);
@@ -2384,6 +2421,39 @@ narrate(
 /* =========================================================================
    第6部：人間ドラマ・運命の岐路・裏切りと赦し・命の選択・エンディング分岐エンジン
    ========================================================================= */
+/* v4.24: モーダルを開いたらフォーカスをモーダル内の最初の要素へ移し、
+   Tab をモーダル内に閉じ込め、Escape で閉じる。見た目は変えない。 */
+(function(){
+  function focusables(modal){
+    return Array.prototype.filter.call(
+      modal.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"),
+      function(el){ return !el.disabled && el.getClientRects().length > 0; });
+  }
+  window.__goatFocusModal = function(modal){
+    if(!modal) return;
+    var f = focusables(modal);
+    if(f.length) f[0].focus();
+  };
+  document.addEventListener("keydown", function(e){
+    var modal = null;
+    if(document.getElementById("mainModal").classList.contains("show")) modal = document.getElementById("mainModal");
+    else if(document.getElementById("dramaModal").classList.contains("show")) modal = document.getElementById("dramaModal");
+    if(!modal) return;
+    if(e.key === "Escape"){
+      e.preventDefault();
+      if(modal.id === "mainModal") closeMainModal();
+      else { modal.classList.remove("show"); focusWorldFrame(); }
+      return;
+    }
+    if(e.key !== "Tab") return;
+    var f = focusables(modal);
+    if(!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  });
+})();
+
 function openDrama(tag, title, text, choices){
   var modal = document.getElementById("dramaModal");
   document.getElementById("dTag").textContent = tag || "DESTINY";
@@ -2404,6 +2474,7 @@ function openDrama(tag, title, text, choices){
     list.appendChild(btn);
   });
   modal.classList.add("show");
+  if(window.__goatFocusModal) window.__goatFocusModal(modal);
 }
 
 function applyEventFx(fx){
@@ -2949,6 +3020,7 @@ function openMainModal(kind, initTab){
 
   modal.classList.add("show");
   renderModalBody();
+  if(window.__goatFocusModal) window.__goatFocusModal(modal);
 }
 
 function tierStars(tier){
@@ -3585,10 +3657,23 @@ function refreshTitleSaveBadges(){
   document.getElementById("ngPlusBtn").style.display = (META.clearedCount > 0) ? "inline-block" : "none";
 }
 
+/* v4.24: 選択中のモードカードに「✓ 選択中」バッジを付ける（.char-box.sel と同じ方式） */
+function syncModeSelBadge(){
+  Array.prototype.forEach.call(document.querySelectorAll(".mode-sel-badge"), function(b){ b.remove(); });
+  var sel = document.querySelector(".mode-card.sel");
+  if(sel){
+    var b = document.createElement("span");
+    b.className = "mode-sel-badge";
+    b.textContent = "✓ 選択中";
+    sel.appendChild(b);
+  }
+}
+
 function selectTitleMode(m){
   selectedMode = m;
   document.getElementById("modeNormal").classList.toggle("sel", m === "normal");
   document.getElementById("modeGoat").classList.toggle("sel", m === "goat");
+  syncModeSelBadge();
   SOUND.sfx("click");
   refreshTitleSaveBadges();
 }
@@ -3608,13 +3693,15 @@ function buildSettingDropdown(mount, items, selId, onPick){
   var head = document.createElement("button");
   head.type = "button";
   head.className = "pdd-head";
+  head.setAttribute("aria-expanded", "false");
   head.innerHTML = "<span class='pdd-val'></span><span class='pdd-chev'>▼</span>";
   head.querySelector(".pdd-val").textContent = selItem.name;
   var list = document.createElement("div");
   list.className = "pdd-list";
   list.style.display = "none";
   items.forEach(function(it){
-    var row = document.createElement("div");
+    var row = document.createElement("button");
+    row.type = "button";
     row.className = "pdd-opt" + (it.id === selId ? " sel" : "");
     var lab = document.createElement("span");
     lab.textContent = it.name;
@@ -3635,7 +3722,17 @@ function buildSettingDropdown(mount, items, selId, onPick){
       row.appendChild(ck2);
       head.querySelector(".pdd-val").textContent = it.name;
       list.style.display = "none"; head.classList.remove("open");
+      head.setAttribute("aria-expanded", "false");
+      head.focus();
       onPick(it.id);
+    });
+    /* v4.24: 矢印キーで選択肢を移動、Escape で閉じて頭ボタンへ戻る（Enter/Space は button の既定の click で選択される） */
+    row.addEventListener("keydown", function(e){
+      var opts = Array.prototype.slice.call(list.querySelectorAll(".pdd-opt"));
+      var i = opts.indexOf(row);
+      if(e.key === "ArrowDown"){ e.preventDefault(); var n = opts[(i + 1) % opts.length]; if(n) n.focus(); }
+      else if(e.key === "ArrowUp"){ e.preventDefault(); var p = opts[(i - 1 + opts.length) % opts.length]; if(p) p.focus(); }
+      else if(e.key === "Escape"){ e.preventDefault(); list.style.display = "none"; head.classList.remove("open"); head.setAttribute("aria-expanded", "false"); head.focus(); }
     });
     list.appendChild(row);
   });
@@ -3643,6 +3740,17 @@ function buildSettingDropdown(mount, items, selId, onPick){
     var willOpen = (list.style.display === "none");
     closeAllSettingDropdowns();
     if(willOpen){ list.style.display = "block"; head.classList.add("open"); }
+    head.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  });
+  /* v4.24: ↓キーで開いて先頭の選択肢へフォーカス、Escape で閉じる（Enter/Space は button の既定の click で開閉される） */
+  head.addEventListener("keydown", function(e){
+    if(e.key === "ArrowDown"){
+      e.preventDefault();
+      if(list.style.display === "none"){ closeAllSettingDropdowns(); list.style.display = "block"; head.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
+      var first = list.querySelector(".pdd-opt"); if(first) first.focus();
+    } else if(e.key === "Escape"){
+      list.style.display = "none"; head.classList.remove("open"); head.setAttribute("aria-expanded", "false");
+    }
   });
   wrap.appendChild(head);
   wrap.appendChild(list);
@@ -3652,8 +3760,12 @@ function buildSettingDropdown(mount, items, selId, onPick){
 
 function closeAllSettingDropdowns(){
   Array.prototype.forEach.call(document.querySelectorAll("#settingScr .pdd-list"), function(l){ l.style.display = "none"; });
-  Array.prototype.forEach.call(document.querySelectorAll("#settingScr .pdd-head"), function(h){ h.classList.remove("open"); });
+  Array.prototype.forEach.call(document.querySelectorAll("#settingScr .pdd-head"), function(h){ h.classList.remove("open"); h.setAttribute("aria-expanded", "false"); });
 }
+/* v4.24: Escape キーで開いている設定プルダウンを閉じる（フォーカスが頭ボタンにない場合も対応） */
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape") closeAllSettingDropdowns();
+});
 
 function updateSettingDesc(){
   var el = document.getElementById("settingDesc");
@@ -3706,6 +3818,7 @@ function renderCharSelection(){
   CHARS.forEach(function(c){
     var box = document.createElement("div");
     box.className = "char-box" + (c.id === selectedHeroId ? " sel" : "");
+    box.tabIndex = 0;
     box.innerHTML =
       "<div class='char-swatch' style='background:" + c.color + "'>" + renderCharPortraitSVG(c) + "</div>" +
       "<div class='char-nm'>" + c.id + "</div>" +
@@ -3725,6 +3838,10 @@ function renderCharSelection(){
       if(selBox){ selBox.classList.remove("tap-flash"); void selBox.offsetWidth; selBox.classList.add("tap-flash"); }
       narrate(c.desc, "female");
     };
+    /* v4.24: 主人公カードをキーボードでも選べるようにする（Enter/Space） */
+    box.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); box.click(); }
+    });
     list.appendChild(box);
   });
   /* v4.18: 選択中の主人公を文字でも明示する（オーバーレイに覆われて語りバーが見えないため）。 */
@@ -3741,6 +3858,14 @@ function renderCharSelection(){
 /* UIボタン配線 */
 document.getElementById("modeNormal").onclick = function(){ selectTitleMode("normal"); };
 document.getElementById("modeGoat").onclick = function(){ selectTitleMode("goat"); };
+/* v4.24: モードカードをキーボードでも選べるようにする（Enter/Space） */
+["modeNormal", "modeGoat"].forEach(function(id){
+  var el = document.getElementById(id);
+  el.addEventListener("keydown", function(e){
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); el.click(); }
+  });
+});
+syncModeSelBadge();
 
 document.getElementById("continueBtn").onclick = function(){
   SOUND.resume(); SOUND.sfx("fanfare");
@@ -4027,7 +4152,7 @@ refreshTitleSaveBadges();
 </script>
 
 <style>
-#narrFoldBtn { flex: 0 0 auto; align-self: center; padding: 3px 8px; border-radius: 999px; background: rgba(20,24,44,.9); border: 1px solid rgba(255,216,117,.5); color: #ffd875; font-size: 10px; cursor: pointer; }
+#narrFoldBtn { flex: 0 0 auto; align-self: center; padding: 11px 12px; border-radius: 999px; background: rgba(20,24,44,.9); border: 1px solid rgba(255,216,117,.5); color: #ffd875; font-size: 11px; cursor: pointer; }
 body.narr-folded #stage { bottom: 26px !important; }
 body.narr-folded #narr { height: 26px !important; min-height: 26px !important; max-height: 26px !important; padding: 2px 10px !important; overflow: hidden; }
 body.narr-folded #narrText, body.narr-folded #narrEn { display: none !important; }
@@ -4069,6 +4194,7 @@ document.addEventListener('DOMContentLoaded', function () {
 #transCurtain.show{opacity:1;pointer-events:all;}
 #transCurtain .cur-emblem{width:min(46vw,210px);height:auto;filter:drop-shadow(0 0 18px rgba(255,216,117,.35));}
 #transCurtain .cur-txt{position:absolute;bottom:12%;left:0;right:0;text-align:center;color:#ffd875;font-family:"Cinzel","Noto Serif JP",serif;letter-spacing:.42em;font-size:12px;opacity:.85;}
+#transCurtain .cur-load{position:absolute;bottom:7%;left:0;right:0;text-align:center;color:#e8ecf7;font-size:13px;letter-spacing:.18em;opacity:.9;}
 .char-swatch svg{width:100%;height:100%;display:block;}
 .icard-name svg{width:26px;height:26px;vertical-align:-7px;margin-right:2px;}
 </style>
@@ -4086,6 +4212,7 @@ document.addEventListener('DOMContentLoaded', function () {
   <path d="M14 188 Q100 172 186 188" stroke="#ffd875" stroke-width="2.2" fill="none" opacity="0.8"/>
 </svg>
 <div class="cur-txt">BATTLE OF GOLF — GOAT</div>
+<div class="cur-load">ワールドを読み込んでいます…</div>
 </div>
 <script>
 (function(){
@@ -4199,6 +4326,8 @@ function renderCharPortraitSVG(c){
     if(!t){
       t = document.createElement("div");
       t.id = "v41Toast";
+      t.setAttribute("role", "status");
+      t.setAttribute("aria-live", "polite");
       t.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,12,26,.94);border:1px solid #c9a227;color:#ffe9a8;font-size:13.5px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);display:none;max-width:92vw;text-align:center;";
       document.body.appendChild(t);
     }
@@ -4296,14 +4425,17 @@ function renderCharPortraitSVG(c){
     if(b === 'webgl') return '描画: WebGL';
     return '描画: ' + b;
   }
-  setInterval(function(){
+  /* v4.24: 描画方式が確定したらポーリングを止める（1秒ごとの無限ポーリングをやめる）。
+     __engineChipPolls は検証用の読み取り回数カウンタ。 */
+  var chipTimer = setInterval(function(){
+    window.__engineChipPolls = (window.__engineChipPolls || 0) + 1;
     try {
       ['worldFrame','golfFrame'].forEach(function(id){
         var f = document.getElementById(id);
         var e = f && f.contentWindow && f.contentWindow.__GOAT_ENGINE__;
         if(e && e.backend){ var t = label(e.backend); if(t) last = t; }
       });
-      if(last) chip.textContent = last;
+      if(last){ chip.textContent = last; clearInterval(chipTimer); }
     } catch(err) {}
   }, 1000);
 })();

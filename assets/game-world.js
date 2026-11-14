@@ -17,10 +17,21 @@
   window.__goatDiagFail = function(slot, detail, e){ try{ var D = window.__GOAT_DIAG__; if(!D) return; var s = (slot === "ibl") ? D.ibl : (D.hq && D.hq[slot]); if(!s) return; s.failed = true; s.detail = detail; s.error = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.at = Date.now(); }catch(_){} };
   window.__goatDiagLoopErr = function(slot, e){ try{ var D = window.__GOAT_DIAG__; if(!D || !D[slot]) return; var s = D[slot]; s.consecErrors = (s.consecErrors || 0) + 1; s.lastError = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.lastErrorAt = Date.now(); }catch(_){} };
   window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(D && D[slot]) D[slot].consecErrors = 0; }catch(_){} };
+  /* v4.24 C-6: 毎フレームの getElementById をやめ、静的DOMの参照を初回にキャッシュする。
+     ファイルスコープに置くこと（テクスチャ用 IIFE の内側だと animate() から見えず
+     ReferenceError になる）。game-world.js は bootstrap 経由で文書解析後に読み込ま
+     れるため、ここでの取得は安全。万一要素が無ければ null のままで、各使用箇所が
+     ガードする（ループを止めない）。 */
+  var _elChargeFill = document.getElementById("chargeFill");
+  var _elChargeLv = document.getElementById("chargeLv");
+  var _elHurtFlash = document.getElementById("hurtFlash");
+  var _elThreatAura = document.getElementById("threatAura");
+  var _elInteractPrompt = document.getElementById("interactPrompt");
+  var _elPromptLabel = document.getElementById("promptLabel");
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.20');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.24');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -3392,11 +3403,13 @@ scene.remove(m.mesh);
       if (charging) {
         chargeTime += dt;
         var pct = Math.min(100, (chargeTime / 1.35) * 100);
-        document.getElementById("chargeFill").style.width = pct + "%";
+        if(_elChargeFill) _elChargeFill.style.width = pct + "%";
         var lv = chargeTime >= 1.28 ? 3 : (chargeTime >= 0.58 ? 2 : 1);
-        var lvEl = document.getElementById("chargeLv");
-        lvEl.textContent = lv === 3 ? "Lv.3 MAX（神威覚醒！）" : ("Lv." + lv);
-        lvEl.style.color = lv === 3 ? "#ff6b81" : (lv === 2 ? "#ffd875" : "#5ce1e6");
+        var lvEl = _elChargeLv;
+        if(lvEl){
+          lvEl.textContent = lv === 3 ? "Lv.3 MAX（神威覚醒！）" : ("Lv." + lv);
+          lvEl.style.color = lv === 3 ? "#ff6b81" : (lv === 2 ? "#ffd875" : "#5ce1e6");
+        }
 
         chargeOrb.visible = true;
         chargeOrb.material.opacity = 0.45 + lv * 0.18;
@@ -3409,8 +3422,9 @@ scene.remove(m.mesh);
       } else {
         skyUniforms.uStorm.value += (0 - skyUniforms.uStorm.value) * dt * 5;
       }
-      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 7);
-      camera.updateProjectionMatrix();
+      /* v4.24 C-6: FOVの変化がしきい値（0.01°）以上のときだけ射影行列を更新する */
+      var _newFov = camera.fov + (targetFov - camera.fov) * Math.min(1, dt * 7);
+      if(Math.abs(_newFov - camera.fov) > 0.01){ camera.fov = _newFov; camera.updateProjectionMatrix(); }
 
       /* WASD・矢印・360°バーチャルスティック・地面タップ自動ダッシュ統合高速移動エンジン */
       if (dashBurstTimer > 0) dashBurstTimer = Math.max(0, dashBurstTimer - dt);
@@ -3731,9 +3745,11 @@ scene.remove(m.mesh);
               STATE.power = Math.max(10, STATE.power - (m.cls === "大" ? 12 : 8));
               postToParent({ type: "goat:worldUpdate", power: STATE.power });
               updateHudNumbers();
-              var hf = document.getElementById("hurtFlash");
-              hf.style.opacity = "1";
-              setTimeout(function () { hf.style.opacity = "0"; }, 180);
+              var hf = _elHurtFlash;
+              if(hf){
+                hf.style.opacity = "1";
+                setTimeout(function () { hf.style.opacity = "0"; }, 180);
+              }
             }
           }
         } else {
@@ -3751,12 +3767,14 @@ scene.remove(m.mesh);
         m.mesh.rotation.y = m.rotY;
       });
 
-      var auraEl = document.getElementById("threatAura");
-      if (nearestThreat < detectBase + 2) {
-        var pulse = 0.45 + 0.35 * Math.sin(elapsed * 7);
-        auraEl.style.opacity = String(Math.min(0.92, (1 - nearestThreat / (detectBase + 3)) * 1.25 * pulse + 0.2));
-      } else {
-        auraEl.style.opacity = "0";
+      var auraEl = _elThreatAura;
+      if(auraEl){
+        if (nearestThreat < detectBase + 2) {
+          var pulse = 0.45 + 0.35 * Math.sin(elapsed * 7);
+          auraEl.style.opacity = String(Math.min(0.92, (1 - nearestThreat / (detectBase + 3)) * 1.25 * pulse + 0.2));
+        } else {
+          auraEl.style.opacity = "0";
+        }
       }
 
       /* エフェクト寿命更新 */
@@ -3794,12 +3812,12 @@ scene.remove(m.mesh);
         }
       });
       activePromptLandmark = foundLM;
-      var prEl = document.getElementById("interactPrompt");
+      var prEl = _elInteractPrompt;
       if (foundLM) {
-        prEl.style.display = "block";
-        document.getElementById("promptLabel").textContent = foundLM.label;
+        if(prEl) prEl.style.display = "block";
+        if(_elPromptLabel) _elPromptLabel.textContent = foundLM.label;
       } else {
-        prEl.style.display = "none";
+        if(prEl) prEl.style.display = "none";
       }
 
       if (subTrialTargetMesh && subTrialTargetMesh.visible) {
