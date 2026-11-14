@@ -31,7 +31,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.24');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.25');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -825,7 +825,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
         tr.position.y = tall ? 2.75 : 1.6;
         tr.castShadow = true;
         g.add(tr);
-        var cMat = new THREE.MeshStandardMaterial({ color: crownColor, roughness: 0.78 });
+        var cMat = new THREE.MeshStandardMaterial({ color: crownColor, roughness: 0.78, flatShading: true }); /* v4.25 D-2: 樹冠の面の陰影を出す（色・形・配置は不変） */
         if (window.HQW) HQW.whenTex('leaf_map', function(){ cMat.normalMap = HQW.tex.leaf_nrm; cMat.bumpMap = HQW.tex.leaf_map; cMat.bumpScale = 0.6; cMat.needsUpdate = true; });
         if (tall) {
           var cone = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7.2, 10), cMat);
@@ -1434,7 +1434,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
           : [0x2e6b34, 0x3d7d3a, 0x27592e];
       var crownInsts = crownCols.map(function (cc) {
         return new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.55, 1),
-          new THREE.MeshStandardMaterial({ color: cc, roughness: 0.85 }), treePos.length);
+          new THREE.MeshStandardMaterial({ color: cc, roughness: 0.85, flatShading: true }), treePos.length); /* v4.25 D-2: 樹冠の面の陰影を出す */
       });
       var tallCrown = (arch === "rome" || arch === "paris");
       treePos.forEach(function (tp, idx) {

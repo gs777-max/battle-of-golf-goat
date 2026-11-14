@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.24 | WebGL版</title>
+<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.25 | WebGL版</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@300;400;700&display=swap">
@@ -13,16 +13,16 @@
 
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.24",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.24",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.24",
+ "three": "./assets/lib/r180/three.module.js?v=4.25",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.25",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.25",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.24",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.24"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.25",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.25"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.24"></script>
-<script src="assets/diag-overlay.js?v=4.24"></script>
+<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.25"></script>
+<script src="assets/diag-overlay.js?v=4.25"></script>
 </head>
 <body>
 
@@ -44,13 +44,13 @@
   <div style="width:100%;max-width:700px"><div class="section-title">🌤️ 天気</div><div id="weatherGrid"></div></div>
   <div style="width:100%;max-width:700px"><div class="section-title">🏌️ 飛距離モード</div>
     <div id="distModeGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:18px;">
-      <div class="dist-mode-btn selected" data-mode="normal"
+      <div class="dist-mode-btn selected" data-mode="normal" tabindex="0" role="button" aria-pressed="true"
         style="background:rgba(0,180,80,0.08);border:2.5px solid var(--green);border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
         <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:900;color:var(--green)">🏌️ 通常モード</div>
         <div style="font-size:0.72rem;color:#8ab;margin-top:4px">DR 最大 <b style="color:#fff">350yd</b></div>
         <div style="font-size:0.62rem;color:#6af;margin-top:2px">リアルな飛距離でプレイ</div>
       </div>
-      <div class="dist-mode-btn" data-mode="super"
+      <div class="dist-mode-btn" data-mode="super" tabindex="0" role="button" aria-pressed="false"
         style="background:rgba(255,100,0,0.06);border:2.5px solid rgba(255,100,0,0.3);border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
         <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:900;color:#ff8844">⚡ 超人モード</div>
         <div style="font-size:0.72rem;color:#8ab;margin-top:4px">DR 最大 <b style="color:#ff8844">500yd</b></div>
@@ -60,17 +60,17 @@
   </div>
   <div style="width:100%;max-width:700px"><div class="section-title">⛳ ラウンド数</div>
     <div id="roundGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px;">
-      <div class="round-btn selected" data-holes="3">
+      <div class="round-btn selected" data-holes="3" tabindex="0" role="button" aria-pressed="true">
         <div class="rn-num">3</div>
         <div class="rn-label">ホール</div>
         <div class="rn-sub">ショート</div>
       </div>
-      <div class="round-btn" data-holes="9">
+      <div class="round-btn" data-holes="9" tabindex="0" role="button" aria-pressed="false">
         <div class="rn-num">9</div>
         <div class="rn-label">ホール</div>
         <div class="rn-sub">ハーフ</div>
       </div>
-      <div class="round-btn" data-holes="18">
+      <div class="round-btn" data-holes="18" tabindex="0" role="button" aria-pressed="false">
         <div class="rn-num">18</div>
         <div class="rn-label">ホール</div>
         <div class="rn-sub">フル</div>
@@ -504,6 +504,9 @@ html,body{width:100%;height:100%;min-height:-webkit-fill-available;overflow:hidd
 #charGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:700px;margin-bottom:18px;}
 .char-card{background:rgba(255,255,255,0.04);border:2px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 8px;cursor:pointer;transition:all 0.18s;text-align:center;}
 .char-card:hover,.char-card:active{border-color:var(--green);}.char-card.selected{border-color:var(--gold);background:rgba(255,215,0,0.1);}
+/* v4.25 B-4: 選んでいることが色だけでなく「✓」でも分かるよう、カード内にバッジを付ける（位置・サイズは変わらない。バッジはカードの内側に収める） */
+.char-card,.course-btn,.weather-btn,.dist-mode-btn,.round-btn{position:relative;}
+.char-card.selected::after,.course-btn.selected::after,.weather-btn.selected::after,.dist-mode-btn.selected::after,.round-btn.selected::after{content:"✓";position:absolute;top:4px;right:4px;width:20px;height:20px;line-height:20px;text-align:center;font-size:13px;font-weight:900;color:#1a1405;background:#ffd875;border-radius:50%;box-shadow:0 0 6px rgba(255,216,117,.6);pointer-events:none;z-index:2;}
 .char-avatar{font-size:1.8rem;margin-bottom:3px;}.char-name{font-family:'Orbitron',sans-serif;font-size:0.75rem;font-weight:700;color:var(--white);margin-bottom:4px;}
 .stat-row{display:flex;justify-content:space-between;align-items:center;font-size:0.62rem;margin:2px 0;}.stat-label{color:#8ab;}
 .stat-bar{width:48px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;}

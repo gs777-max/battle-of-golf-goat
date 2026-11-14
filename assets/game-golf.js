@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.24');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.25');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -1517,6 +1517,18 @@ class PuttController{
     this.maxRangeYd=4.0; // メーター全体の最大距離(yd) = distYd / 0.75
   }
 
+  /* v4.25 C-6b: パットメーターの要素参照を初回にキャッシュし、毎フレームの getElementById をやめる
+     （v4.24 C-6 の PowerMeter と同じ方式。_anim は毎フレーム3回探していた）。 */
+  _els(){
+    if(!this._el){ this._el={
+      n:document.getElementById("puttNeedle"),
+      pvn:document.getElementById("puttValueNum"),
+      pzh:document.getElementById("puttZoneHint"),
+      iz:document.getElementById("puttImpactZone"),
+      pm:document.getElementById("puttTargetPinMarker")}; }
+    return this._el;
+  }
+
   // ピンまでの距離(yd)に応じてメーターをオートスケール
   setTargetFromDist(distYd){
     this.distYd=Math.max(0.5, distYd);
@@ -1527,14 +1539,14 @@ class PuttController{
     this.targetRange=0.08;
     this._updateUI();
 
-    const pvn=document.getElementById("puttValueNum");
+    const pvn=this._els().pvn;
     if(pvn) pvn.textContent=`${this.distYd.toFixed(1)}yd (${this.distFt.toFixed(1)}ft)`;
-    const pzh=document.getElementById("puttZoneHint");
+    const pzh=this._els().pzh;
     if(pzh) pzh.textContent=`⛳ 目標: ${Math.round(this.distYd)}yd (${Math.round(this.distFt)}ft)`;
   }
 
   _updateUI(){
-    const iz=document.getElementById("puttImpactZone");
+    const iz=this._els().iz;
     if(iz){
       const left=(this.targetPos - this.targetRange * 0.5) * 100;
       const width=this.targetRange * 100;
@@ -1542,7 +1554,7 @@ class PuttController{
       iz.style.width=width + "%";
       iz.style.display="block";
     }
-    const pm=document.getElementById("puttTargetPinMarker");
+    const pm=this._els().pm;
     if(pm){
       pm.style.left=(this.targetPos * 100) + "%";
     }
@@ -1551,17 +1563,17 @@ class PuttController{
   reset(){
     this.phase=0;this.needlePos=0;this.needleDir=1;this.animating=false;
     if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;}
-    const n=document.getElementById("puttNeedle");if(n)n.style.left="0%";
-    const pvn=document.getElementById("puttValueNum");
+    const n=this._els().n;if(n)n.style.left="0%";
+    const pvn=this._els().pvn;
     if(pvn){pvn.textContent=`${this.distYd.toFixed(1)}yd (${this.distFt.toFixed(1)}ft)`; pvn.style.color="#00ffcc";}
-    const pzh=document.getElementById("puttZoneHint");
+    const pzh=this._els().pzh;
     if(pzh){pzh.textContent="⛳ タップでパット開始"; pzh.style.color="#ffd700";}
   }
 
   start(){
     if(this.phase!==0)return;
     this.phase=1;this.animating=true;this.needlePos=0;this.needleDir=1;
-    const pzh=document.getElementById("puttZoneHint");
+    const pzh=this._els().pzh;
     if(pzh){pzh.textContent="🏌️ 緑のゾーンで止める！"; pzh.style.color="#00ff88";}
     this._updateUI();
     this.lastTime=performance.now();this._anim();
@@ -1573,7 +1585,7 @@ class PuttController{
     this.needlePos+=this.needleDir*this.needleSpeed*dt;
     if(this.needlePos>=1){this.needlePos=1;this.needleDir=-1;}
     if(this.needlePos<=0){this.needlePos=0;this.needleDir=1;}
-    const n=document.getElementById("puttNeedle");if(n)n.style.left=(this.needlePos*100)+"%";
+    const n=this._els().n;if(n)n.style.left=(this.needlePos*100)+"%";
 
     // 狙う転がり距離（物理法則基準）
     const targetRollYd = this.needlePos * this.maxRangeYd;
@@ -1581,8 +1593,8 @@ class PuttController{
     const diffYd = targetRollYd - this.distYd;
     const diffSign = diffYd > 0 ? `+${diffYd.toFixed(1)}` : `${diffYd.toFixed(1)}`;
 
-    const pvn=document.getElementById("puttValueNum");
-    const pzh=document.getElementById("puttZoneHint");
+    const pvn=this._els().pvn;
+    const pzh=this._els().pzh;
     const inJustZone = Math.abs(this.needlePos - this.targetPos) <= this.targetRange * 0.5;
 
     if(pvn){
@@ -1623,7 +1635,7 @@ class PuttController{
       msg="⚠️ OVER (強すぎ)"; col="#ff7777";
     }
 
-    const pzh=document.getElementById("puttZoneHint");
+    const pzh=this._els().pzh;
     if(pzh){pzh.textContent=msg; pzh.style.color=col;}
 
     // ★ 物理運動方程式で狙った目標転がり距離（yd）を渡す
@@ -2463,6 +2475,7 @@ class GolfGame{
     }
     document.querySelectorAll(".club-btn").forEach((b,i)=>{
       b.classList.toggle("active",i===this.currentClubIdx);
+      b.setAttribute("aria-pressed",i===this.currentClubIdx?"true":"false"); /* v4.25 B-4: 選択状態を読み上げにも伝える */
       if(i===this.currentClubIdx){
         try{b.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});}
         catch(e){try{b.scrollIntoView(false);}catch(e2){}}
@@ -4063,7 +4076,7 @@ const bCntGreen=Math.min(bunkerCount,5);
     const crownR=(type==="pine"?2.5:3.1)*sm;
     for(let k=0;k<nCl;k++){
       const cr=crownR*(1.0-k*0.16)*(0.85+rnd()*0.3);
-      const cm=new THREE.MeshLambertMaterial({color:greens[Math.floor(rnd()*greens.length)]});
+      const cm=new THREE.MeshLambertMaterial({color:greens[Math.floor(rnd()*greens.length)],flatShading:true}); /* v4.25 D-1: 樹冠の面の陰影を出す（置換後のStandardにも _hqUpgradeGround で付ける） */
       if(leafTex){ cm.map=leafTex; }
       const blob=new THREE.Mesh(new THREE.IcosahedronGeometry(cr,1),cm);
       blob.position.set(
@@ -4232,7 +4245,7 @@ const bCntGreen=Math.min(bunkerCount,5);
     const flagCol=isAugPin?0xffd700:pinCid==="tpcsawgrass"?0xff2222:pinCid==="pebble"?0x0088ff:0xff3300;
     // ★ 物理風シミュレーション対応リアル布フラッグ（細分化メッシュ）
     const flagGeo = new THREE.PlaneGeometry(2.8, 1.9, 12, 4);
-    const flagMat = new THREE.MeshBasicMaterial({color: flagCol, side: THREE.DoubleSide});
+    const flagMat = new THREE.MeshLambertMaterial({color: flagCol, side: THREE.DoubleSide}); /* v4.25 D-3: 旗に光の陰影を付け、布の立体感を出す（Basic は光を受けず平坦だった。色・サイズ・位置は不変） */
     const flag = new THREE.Mesh(flagGeo, flagMat);
     flag.position.set(gp.x + 1.4, gp.y + 7.2, gp.z);
     this.scene.add(flag);
@@ -4541,6 +4554,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         const geo = o.geometry;
         if(geo){ geo.computeBoundingBox(); const bb = geo.boundingBox; const dims = [bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z].sort((a, b) => b - a); rx = Math.max(1, Math.min(48, Math.round(dims[0] / 6))); ry = Math.max(1, Math.min(48, Math.round(dims[1] / 6))); }
         const nm = new THREE.MeshStandardMaterial({ color: c.getHex(), roughness: kind === 'water' ? 0.12 : 0.94, metalness: kind === 'water' ? 0.05 : 0.0 });
+        if (geo && geo.type === 'IcosahedronGeometry') nm.flatShading = true; /* v4.25 D-1: 樹冠だけ面の陰影を出す。地面（BufferGeometry/PlaneGeometry）は対象外＝空撮パターンの地面・階調には触らない */
         if(kind === 'grass'){ nm.map = mkTex(T.grass_detail, rx, ry); nm.normalMap = mkTex(T.grass_nrm, rx, ry); nm.envMapIntensity = 0.35; /* v4.15: 芝は反射しないため空の映り込みを抑え、色の濃さを戻す。 */ }
         else if(kind === 'sand'){ nm.map = mkTex(T.sand_detail, rx, ry); nm.normalMap = mkTex(T.sand_nrm, rx, ry); nm.envMapIntensity = 0.35; /* v4.15: 同上。 */ }
         else { nm.normalMap = mkTex(T.water_nrm, rx, ry); nm.envMapIntensity = 0.6; /* v4.15: 池の飽和青を戻す（従来1.3では空の反射で白く抜けていた）。 */ if(nm.normalMap){ nm.normalMap.wrapS = nm.normalMap.wrapT = THREE.RepeatWrapping; (H.waterMats = H.waterMats || []).push(nm); } }
@@ -6776,9 +6790,15 @@ function renderCharPortraitSVG(c){
     '</svg>';
 }
 function buildStartUI(){
+  /* v4.25 A-10/B-4: 開始画面の選択カードもキーボードで選べるようにし、選んだものに「✓」が付く。
+     見た目・配置・サイズは変わらない（シェル側は v4.24 で実施済みの方式と同じ）。 */
+  const _syncAria=(sel,cls)=>{document.querySelectorAll(sel).forEach(x=>x.setAttribute("aria-pressed",x.classList.contains(cls)?"true":"false"));};
+  const _mkSel=(el,cls)=>{ el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+    el.setAttribute("aria-pressed",el.classList.contains(cls)?"true":"false");
+    el.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); el.click(); } }); };
   const cg=document.getElementById("charGrid");
   CHARACTERS.forEach((c,i)=>{
-    const card=document.createElement("div");card.className="char-card"+(i===0?" selected":"");card.dataset.idx=i;
+    const card=document.createElement("div");card.className="char-card"+(i===0?" selected":"");card.dataset.idx=i;_mkSel(card,"selected");
     const spd=Math.round((c.driverSpeed/95)*100);
     const stab={"最高に安定":100,"安定":70,"不安定":38};
     const stars=v=>v>=90?"★★★":v>=65?"★★☆":"★☆☆";
@@ -6791,25 +6811,25 @@ function buildStartUI(){
       <div class="stat-row"><span class="stat-label">DR</span><div class="stat-bar"><div class="stat-fill" style="width:${spd}%"></div></div><span style="font-size:0.6rem">${c.driverSpeed}</span></div>
       <div class="stat-row"><span class="stat-label">鉄</span><span class="star-row">${stars(stab[c.ironStability]||50)}</span></div>
       <div class="stat-row"><span class="stat-label">PT</span><span class="star-row">${stars(stab[c.putterStability]||50)}</span></div>`;
-    card.addEventListener("click",()=>{document.querySelectorAll(".char-card").forEach(x=>x.classList.remove("selected"));card.classList.add("selected");});cg.appendChild(card);
+    card.addEventListener("click",()=>{document.querySelectorAll(".char-card").forEach(x=>x.classList.remove("selected"));card.classList.add("selected");_syncAria(".char-card","selected");});cg.appendChild(card);
   });
   const courseG=document.getElementById("courseGrid");
   COURSES.forEach((c,i)=>{
-    const btn=document.createElement("div");btn.className="course-btn"+(i===0?" selected":"");btn.dataset.idx=i;
+    const btn=document.createElement("div");btn.className="course-btn"+(i===0?" selected":"");btn.dataset.idx=i;_mkSel(btn,"selected");
     btn.innerHTML=`<div class="course-name"><span style="margin-right:4px">${c.flag}</span>${c.name}</div><div class="course-info">${c.desc}</div>`;
-    btn.addEventListener("click",()=>{document.querySelectorAll(".course-btn").forEach(x=>x.classList.remove("selected"));btn.classList.add("selected");});courseG.appendChild(btn);
+    btn.addEventListener("click",()=>{document.querySelectorAll(".course-btn").forEach(x=>x.classList.remove("selected"));btn.classList.add("selected");_syncAria(".course-btn","selected");});courseG.appendChild(btn);
   });
   const wg=document.getElementById("weatherGrid");
   [{type:"sunny",icon:"☀️",name:"晴れ"},{type:"rain",icon:"🌧️",name:"雨"},{type:"strongWind",icon:"💨",name:"強風"},{type:"fog",icon:"🌫️",name:"霧"}].forEach((w,i)=>{
-    const btn=document.createElement("div");btn.className="weather-btn"+(i===0?" selected":"");btn.dataset.type=w.type;
+    const btn=document.createElement("div");btn.className="weather-btn"+(i===0?" selected":"");btn.dataset.type=w.type;_mkSel(btn,"selected");
     btn.innerHTML=`<div class="weather-icon">${w.icon}</div><div class="weather-name">${w.name}</div>`;
-    btn.addEventListener("click",()=>{document.querySelectorAll(".weather-btn").forEach(x=>x.classList.remove("selected"));btn.classList.add("selected");});wg.appendChild(btn);
+    btn.addEventListener("click",()=>{document.querySelectorAll(".weather-btn").forEach(x=>x.classList.remove("selected"));btn.classList.add("selected");_syncAria(".weather-btn","selected");});wg.appendChild(btn);
   });
   const cs=document.getElementById("clubScroll");
   CLUBS.forEach((c,i)=>{
     const btn=document.createElement("div");
     btn.className="club-btn"+(i===0?" active":"");
-    btn.dataset.idx=i;
+    btn.dataset.idx=i;_mkSel(btn,"active");
     // クラブタイプ別の色アクセント
     const typeEmoji=c.type==="driver"?"🏌️":c.type==="wood"?"🌲":c.type==="iron"?"⛳":c.type==="approach"?"🎯":c.type==="putter"?"🏴":"⛳";
     const distColor=c.type==="driver"?"#ffaa44":c.type==="wood"?"#88ffaa":c.type==="iron"?"#66ddff":c.type==="approach"?"#ffdd66":"#aaffdd";
@@ -6881,17 +6901,23 @@ window.addEventListener("load",()=>{
 
   // 飛距離モード選択
   document.querySelectorAll(".dist-mode-btn").forEach(btn=>{
+    btn.setAttribute("tabindex","0"); btn.setAttribute("role","button");
+    btn.setAttribute("aria-pressed",btn.classList.contains("selected")?"true":"false");
+    btn.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); btn.click(); } });
     btn.addEventListener("click",()=>{
-      document.querySelectorAll(".dist-mode-btn").forEach(b=>b.classList.remove("selected"));
-      btn.classList.add("selected");
+      document.querySelectorAll(".dist-mode-btn").forEach(b=>{b.classList.remove("selected");b.setAttribute("aria-pressed","false");});
+      btn.classList.add("selected"); btn.setAttribute("aria-pressed","true");
     });
   });
 
   // ラウンド数選択
   document.querySelectorAll(".round-btn").forEach(btn=>{
+    btn.setAttribute("tabindex","0"); btn.setAttribute("role","button");
+    btn.setAttribute("aria-pressed",btn.classList.contains("selected")?"true":"false");
+    btn.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); btn.click(); } });
     btn.addEventListener("click",()=>{
-      document.querySelectorAll(".round-btn").forEach(b=>b.classList.remove("selected"));
-      btn.classList.add("selected");
+      document.querySelectorAll(".round-btn").forEach(b=>{b.classList.remove("selected");b.setAttribute("aria-pressed","false");});
+      btn.classList.add("selected"); btn.setAttribute("aria-pressed","true");
     });
   });
 
