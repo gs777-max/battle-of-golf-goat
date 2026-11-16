@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.25 | WebGL版</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.29 | WebGL版</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap">
@@ -619,7 +619,7 @@
       }
 
       .map-legend {
-        font-size: 8px;
+        font-size: 10px; /* v4.29 A-1: 凡例を読みやすくする（#miniWrap 内で折り返して吸収されるためレイアウト不変） */
       }
 
       #fireControls {
@@ -760,7 +760,7 @@
       #topLeftHud { min-width: 0; width: 146px; padding: 6px 8px; }
       .hero-line { flex-direction: column; align-items: flex-start; gap: 0; }
       .hero-nm { font-size: 12.5px; }
-      .hero-rk { font-size: 9px; }
+      .hero-rk { font-size: 10.5px; } /* v4.29 A-1: ランク表示を読みやすくする（#topLeftHud 幅 146px 固定・縦積みのため高さが約 2px 伸びるだけ） */
       .mini-stats { flex-wrap: wrap; gap: 3px 8px; font-size: 10px; margin-top: 4px; padding-top: 4px; }
       #topRightHud { max-width: 214px; }
       .club-bar { flex-wrap: wrap; justify-content: flex-end; }
@@ -769,29 +769,29 @@
       #bottomLeftHud { bottom: 62px; width: 190px; }
       #vStickWrap { bottom: 200px; left: 10px; width: 104px; }
       #vStickBase { width: 96px; height: 96px; }
-      #vStickHint { font-size: 9px; padding: 2px 7px; }
+      #vStickHint { font-size: 11px; padding: 2px 7px; } /* v4.29 A-1: スティック操作のヒントを読みやすくする（絶対配置のため他要素に影響しない） */
       #fireControls { bottom: 10px; left: 0; transform: none; width: 100%; justify-content: center; padding: 0 4px; box-sizing: border-box; }
-      #dashToggleBtn, #boostStepBtn { font-size: 10.5px; padding: 11px 10px; flex-shrink: 1; }
+      #dashToggleBtn, #boostStepBtn { font-size: 10.5px; padding: 14px 10px; flex-shrink: 1; } /* v4.27 A-13: 高さ39px→44px級へ（文字サイズは据え置き） */
       #chargeBtn { font-size: 11px; padding: 11px 13px; flex-shrink: 1; white-space: normal; text-align: center; line-height: 1.25; }
       #miniWrap { bottom: 62px; }
       #minimap { width: 104px; height: 104px; }
-      .map-legend { font-size: 8.5px; white-space: normal; }
+      .map-legend { font-size: 10px; white-space: normal; } /* v4.29 A-1: スマホ時の凡例も 10px にする */
       #miniWrap { max-width: 124px; }
       #minimap { width: 104px !important; height: 104px !important; }
     }
   </style>
-<script src="assets/diag-overlay.js?v=4.25"></script>
+<script src="assets/diag-overlay.js?v=4.29"></script>
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.25",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.25",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.25",
+ "three": "./assets/lib/r180/three.module.js?v=4.29",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.29",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.29",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.25",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.25"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.29",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.29"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.25"></script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.29"></script>
 </head>
 
 <body>
@@ -850,7 +850,7 @@
   <!-- 右下：ミニマップ（タップで瞬間移動対応） -->
   <div id="miniWrap" class="hud-card" title="ミニマップの任意の場所をクリック／タップするとそこへ瞬時に高速移動します">
     <canvas id="minimap" width="156" height="156" role="img" aria-label="ミニマップ。エリアの地形と、残影・施設・決戦門の位置を示します"></canvas>
-    <div class="map-legend">🟣残影 🟢浄化 🟡施設 🔴決戦門 (タップ瞬移)</div>
+    <div class="map-legend">🟣残影 🟢浄化 🟡施設 🔴決戦門(開) ◇決戦門(閉) (タップ瞬移)</div>
   </div>
 
   <!-- 左下：スマホ＆PC両対応 360°バーチャルスティック -->

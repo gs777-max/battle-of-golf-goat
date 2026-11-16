@@ -31,7 +31,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.25');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.29');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -654,8 +654,10 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
     }
 
     function isInPond(x, z) {
+      /* v4.29 P-5: 半径との比較だけのため平方根をやめ二乗比較にする（数学的に等価。PONDS の r は 10.5 以上で r-0.8 は常に正だが、念のため rr>0 のガードを付ける）。 */
       for (var i = 0; i < PONDS.length; i++) {
-        if (Math.hypot(x - PONDS[i].x, z - PONDS[i].z) < PONDS[i].r - 0.8) return true;
+        var _pdx = x - PONDS[i].x, _pdz = z - PONDS[i].z, _prr = PONDS[i].r - 0.8;
+        if (_prr > 0 && _pdx * _pdx + _pdz * _pdz < _prr * _prr) return true;
       }
       return false;
     }
@@ -680,8 +682,10 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
       return { x: rx, z: rz };
     }
     function isInBunker(x, z) {
+      /* v4.29 P-5: 半径との比較だけのため二乗比較にする（数学的に等価。念のため rr>0 のガードを付ける）。 */
       for (var i = 0; i < BUNKERS.length; i++) {
-        if (Math.hypot(x - BUNKERS[i].x, z - BUNKERS[i].z) < BUNKERS[i].r) return true;
+        var _bdx = x - BUNKERS[i].x, _bdz = z - BUNKERS[i].z, _brr = BUNKERS[i].r;
+        if (_brr > 0 && _bdx * _bdx + _bdz * _bdz < _brr * _brr) return true;
       }
       return false;
     }
@@ -1477,7 +1481,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
 
       /* 遠景の山影リング（平坦な地平線をシルエットで割る） */
       var mtnCol = new THREE.Color(THEME.fogColor).lerp(new THREE.Color(0x8fa4c8), 0.45);
-      var mtnMat = new THREE.MeshBasicMaterial({ color: mtnCol });
+      var mtnMat = new THREE.MeshStandardMaterial({ color: mtnCol, roughness: 0.95, flatShading: true }); /* v4.27 D-3b: 山影リングに面の陰影を出す（色・形・配置・個数は不変。v4.25 D-2 の樹冠と同じ方式） */
       for (var mi = 0; mi < 15; mi++) {
         var ma = (mi / 15) * Math.PI * 2 + rnd() * 0.2;
         var mr = 148 + rnd() * 42, mh = 17 + rnd() * 24;
@@ -1829,6 +1833,7 @@ if(isFinite(px) && isFinite(pz) && Math.abs(px) <= 600 && Math.abs(pz) <= 600){ 
 
     var LANDMARKS = [];
     var subTrialTargetMesh = null;
+    var _subTrialBaseY = null; /* v4.29 P-6: 試練ターゲットの地面高さ（terrainY(26,-18)。固定座標のため初回に1回だけ計算して使い回す） */
     var duelGateGroup = null, duelPortalMesh = null;
 
     (function buildFacilities() {
@@ -2921,6 +2926,14 @@ scene.remove(m.mesh);
       }
       return arr;
     }
+    /* v4.28 C-11: 毎フレームの呼び出し元は個数だけ使うため、配列を作らず数える版を用意する。 */
+    function activeCanvasPointerCount() {
+      var n = 0;
+      for (var k in canvasPointers) {
+        if (Object.prototype.hasOwnProperty.call(canvasPointers, k)) n++;
+      }
+      return n;
+    }
 
     function handleTapToMove(clientX, clientY) {
       if (STATE.paused || !groundMesh) return;
@@ -3038,9 +3051,20 @@ scene.remove(m.mesh);
     }, { passive: true });
 
     /* ③ 右下ミニマップのクリック／タップでその地点へ瞬間高速ワープ！ */
+    /* v4.27 U-1: ミニマップの誤瞬移防止。pointerdown では位置だけ記録し、pointerup 時に
+       移動量10px未満・600ms以内の「タップ」のときだけ瞬移する。ドラッグ（カメラ操作のつもりで
+       ミニマップ上から動かし始めた場合）は瞬移しない。タップ時の挙動・座標計算は従来と同一。 */
+    var _mmTap = null;
     document.getElementById("minimap").addEventListener("pointerdown", function (e) {
       e.preventDefault(); e.stopPropagation();
       ensureAC();
+      _mmTap = { x: e.clientX, y: e.clientY, t: Date.now() };
+    });
+    document.getElementById("minimap").addEventListener("pointerup", function (e) {
+      if (!_mmTap) return;
+      var dx = e.clientX - _mmTap.x, dy = e.clientY - _mmTap.y, dtap = Date.now() - _mmTap.t;
+      _mmTap = null;
+      if (Math.hypot(dx, dy) > 10 || dtap > 600) return; /* ドラッグ／長押しは瞬移しない */
       var cv = document.getElementById("minimap");
       var r = cv.getBoundingClientRect();
       var px = ((e.clientX - r.left) / r.width) * cv.width;
@@ -3056,6 +3080,7 @@ scene.remove(m.mesh);
       spawnPillarFX(player.x, player.z, 0x5ce1e6, 2.4, 9, 0.45);
       showToast("⚡ ミニマップ瞬間移動！");
     });
+    document.getElementById("minimap").addEventListener("pointercancel", function () { _mmTap = null; });
 
     /* ④ キーボード入力（Windows直接フォーカス時 ＆ 親フレーム index.html からの自動転送の両対応！） */
     function normalizeKeyTokens(code, key) {
@@ -3169,6 +3194,15 @@ scene.remove(m.mesh);
 
     var flameCv = document.getElementById("flameCanvas");
     var flameCtx = flameCv.getContext("2d");
+    /* v4.27 P-W1/P-W2/P-W3: 毎フレームの生成物をキャッシュ／間引きするための変数。 */
+    var _gaugeGrad = null, _gaugeGradBand = -1, _gaugeGradW = 0;
+    var _lastMiniT = -1e9;
+    var _camTarget = null; /* v4.27 P-W3: 初回使用時に生成（読み込み順に依存しないため） */
+    /* v4.28 C-1/C-4/C-6/C-7/C-8/C-9: ミニマップ背景グラデーション・terrainY・チャージLv・神装オーラ色・プロンプト表示・脅威オーラのキャッシュ用変数。 */
+    var _mmBgGrad = null, _mmBgGradW = 0, _mmBgGradH = 0;
+    var _cachedT = 0, _cachedTX = null, _cachedTZ = null;
+    var _lastChargeLv = -1, _sacredColKey = -1, _sacredHidden = false;
+    var _lastPromptLM = undefined, _threatFar = false;
     var threadCv = document.getElementById("threadCanvas");
     var threadCtx = threadCv.getContext("2d");
     var miniCv = document.getElementById("minimap");
@@ -3181,14 +3215,20 @@ scene.remove(m.mesh);
       flameCtx.clearRect(0, 0, W, H);
       var fillW = (pw / 100) * W;
       var turb = pw >= 75 ? 1.8 : (pw >= 40 ? 3.6 : 6.5);
-      var grad = flameCtx.createLinearGradient(0, 0, W, 0);
-      if (pw >= 75) {
-        grad.addColorStop(0, "#1e90ff"); grad.addColorStop(0.55, "#5ce1e6"); grad.addColorStop(1, "#ffe57f");
-      } else if (pw >= 40) {
-        grad.addColorStop(0, "#ff6b35"); grad.addColorStop(0.6, "#ffb142"); grad.addColorStop(1, "#fff275");
-      } else {
-        grad.addColorStop(0, "#8b0000"); grad.addColorStop(0.5, "#ff2e4c"); grad.addColorStop(1, "#ff9f43");
+      /* v4.27 P-W1: グラデーションの色はパワー帯（75以上／40以上／それ未満）だけで決まるため、帯が変わったときだけ作り直して使い回す（毎フレームの生成をなくす。炎の波形は従来どおり毎フレーム描き直す）。 */
+      var _band = pw >= 75 ? 2 : (pw >= 40 ? 1 : 0);
+      if (_gaugeGradBand !== _band || !_gaugeGrad || _gaugeGradW !== W) {
+        _gaugeGrad = flameCtx.createLinearGradient(0, 0, W, 0);
+        if (_band === 2) {
+          _gaugeGrad.addColorStop(0, "#1e90ff"); _gaugeGrad.addColorStop(0.55, "#5ce1e6"); _gaugeGrad.addColorStop(1, "#ffe57f");
+        } else if (_band === 1) {
+          _gaugeGrad.addColorStop(0, "#ff6b35"); _gaugeGrad.addColorStop(0.6, "#ffb142"); _gaugeGrad.addColorStop(1, "#fff275");
+        } else {
+          _gaugeGrad.addColorStop(0, "#8b0000"); _gaugeGrad.addColorStop(0.5, "#ff2e4c"); _gaugeGrad.addColorStop(1, "#ff9f43");
+        }
+        _gaugeGradBand = _band; _gaugeGradW = W;
       }
+      var grad = _gaugeGrad;
       flameCtx.fillStyle = grad;
       flameCtx.beginPath();
       flameCtx.moveTo(0, H);
@@ -3231,11 +3271,15 @@ scene.remove(m.mesh);
       /* 紙面（ラフ=淡黄緑）: 円盤にクリップして描く */
       miniCtx.save();
       miniCtx.beginPath(); miniCtx.arc(cx, cy, W * 0.48, 0, Math.PI * 2); miniCtx.clip();
-      var bgGrad = miniCtx.createRadialGradient(cx, H * 0.42, 6, cx, cy, W * 0.78);
-      bgGrad.addColorStop(0, "#dff29e");
-      bgGrad.addColorStop(0.65, "#c4e06a");
-      bgGrad.addColorStop(1, "#a9cc4e");
-      miniCtx.fillStyle = bgGrad;
+      /* v4.28 C-1: 背景グラデーションは寸法が変わらない限り使い回す（P-W1 と同型。色・範囲は同一）。 */
+      if (!_mmBgGrad || _mmBgGradW !== W || _mmBgGradH !== H) {
+        _mmBgGrad = miniCtx.createRadialGradient(cx, H * 0.42, 6, cx, cy, W * 0.78);
+        _mmBgGrad.addColorStop(0, "#dff29e");
+        _mmBgGrad.addColorStop(0.65, "#c4e06a");
+        _mmBgGrad.addColorStop(1, "#a9cc4e");
+        _mmBgGradW = W; _mmBgGradH = H;
+      }
+      miniCtx.fillStyle = _mmBgGrad;
       miniCtx.fillRect(0, 0, W, H);
       /* ラフの斜め刈り目（ごく淡い2トーン。作法では刈り目はフェアウェイの表現のため紙面側は弱く） */
       for (var rs = -H, rk = 0; rs < W + H; rs += 11, rk++) {
@@ -3310,20 +3354,27 @@ scene.remove(m.mesh);
         miniCtx.strokeStyle = edge; miniCtx.lineWidth = 0.9; miniCtx.stroke();
       }
 
-      /* 施設・祠・決戦の門（門は菱形で区別。開=赤／閉=紫・施設=金は従来どおり） */
+      /* 施設・祠・決戦の門（門は菱形で区別。開=赤の塗り／閉=紫の中抜き・施設=金は従来どおり。v4.27 A-14: 色だけでなく形でも区別） */
+      var _gateOpen = isDuelGateOpen(); /* v4.28 C-3: 門の開閉判定は1回の描画で1回だけ行う（描画中に値は変わらない）。 */
       LANDMARKS.forEach(function (lm) {
         var lx = cx + lm.x * sc, ly = cy + lm.z * sc;
         if (lm.isGate) {
-          var gr = 5.2, gc = isDuelGateOpen() ? "#ff4d5a" : "#7c5295";
+          var gr = 5.2, gc = _gateOpen ? "#ff4d5a" : "#7c5295";
           miniCtx.fillStyle = "#ffffff";
           miniCtx.beginPath();
           miniCtx.moveTo(lx, ly - gr - 1.8); miniCtx.lineTo(lx + gr + 1.8, ly); miniCtx.lineTo(lx, ly + gr + 1.8); miniCtx.lineTo(lx - gr - 1.8, ly);
           miniCtx.closePath(); miniCtx.fill();
-          miniCtx.fillStyle = gc;
           miniCtx.beginPath();
           miniCtx.moveTo(lx, ly - gr); miniCtx.lineTo(lx + gr, ly); miniCtx.lineTo(lx, ly + gr); miniCtx.lineTo(lx - gr, ly);
-          miniCtx.closePath(); miniCtx.fill();
-          miniCtx.strokeStyle = "rgba(60,10,20,0.55)"; miniCtx.lineWidth = 0.9; miniCtx.stroke();
+          miniCtx.closePath();
+          if (_gateOpen) {
+            miniCtx.fillStyle = gc;
+            miniCtx.fill();
+            miniCtx.strokeStyle = "rgba(60,10,20,0.55)"; miniCtx.lineWidth = 0.9; miniCtx.stroke();
+          } else {
+            /* v4.27 A-14: 閉じた門は中抜きの菱形（白抜き＋紫の縁）にして、色だけでなく形でも開／閉を区別する。 */
+            miniCtx.strokeStyle = gc; miniCtx.lineWidth = 1.8; miniCtx.stroke();
+          }
         } else {
           haloDot(lx, ly, 3.2, "#ffd875", "rgba(120,82,0,0.65)");
         }
@@ -3391,11 +3442,14 @@ scene.remove(m.mesh);
       if (gs.setGodComplete || gs.setThree || gs.setOlympus) {
         sacredAuraRing.visible = true;
         sacredAuraRing.material.opacity = 0.52 + Math.sin(elapsed * 4) * 0.18;
-        sacredAuraRing.material.color.setHex(gs.setGodComplete ? 0x5ce1e6 : 0xffd875);
+        /* v4.28 C-7: オーラの色は神装セットの組み合わせが変わったときだけ設定する。 */
+        var _scKey = gs.setGodComplete ? 1 : 0;
+        if (_scKey !== _sacredColKey) { _sacredColKey = _scKey; sacredAuraRing.material.color.setHex(_scKey ? 0x5ce1e6 : 0xffd875); }
         sacredAuraRing.rotation.z = elapsed * 1.4;
+        _sacredHidden = false;
       } else {
         sacredAuraRing.visible = false;
-        sacredAuraRing.material.opacity = 0;
+        if (!_sacredHidden) { sacredAuraRing.material.opacity = 0; _sacredHidden = true; }
       }
 
       /* 波動チャージ3段階演出（カメラドリーイン＋Lv3暗雲雷鳴） */
@@ -3406,20 +3460,25 @@ scene.remove(m.mesh);
         if(_elChargeFill) _elChargeFill.style.width = pct + "%";
         var lv = chargeTime >= 1.28 ? 3 : (chargeTime >= 0.58 ? 2 : 1);
         var lvEl = _elChargeLv;
-        if(lvEl){
-          lvEl.textContent = lv === 3 ? "Lv.3 MAX（神威覚醒！）" : ("Lv." + lv);
-          lvEl.style.color = lv === 3 ? "#ff6b81" : (lv === 2 ? "#ffd875" : "#5ce1e6");
+        /* v4.28 C-6: Lv 表示とチャージ球の色は Lv が変わったときだけ書き込む（表示・色は同一）。 */
+        if (lv !== _lastChargeLv) {
+          _lastChargeLv = lv;
+          if(lvEl){
+            lvEl.textContent = lv === 3 ? "Lv.3 MAX（神威覚醒！）" : ("Lv." + lv);
+            lvEl.style.color = lv === 3 ? "#ff6b81" : (lv === 2 ? "#ffd875" : "#5ce1e6");
+          }
+          chargeOrb.material.color.setHex(lv === 3 ? 0xffd875 : (lv === 2 ? 0x7ee8fa : 0x48dbfb));
         }
 
         chargeOrb.visible = true;
         chargeOrb.material.opacity = 0.45 + lv * 0.18;
-        chargeOrb.material.color.setHex(lv === 3 ? 0xffd875 : (lv === 2 ? 0x7ee8fa : 0x48dbfb));
         chargeOrb.scale.setScalar(0.8 + Math.sin(elapsed * 22) * 0.18 + lv * 0.35);
 
         targetFov = lv === 3 ? 44 : (lv === 2 ? 48 : 50.5);
         skyUniforms.uStorm.value += ((lv === 3 ? 0.85 : (lv === 2 ? 0.25 : 0)) - skyUniforms.uStorm.value) * dt * 4;
         if (lv === 3 && Math.random() < 0.05) skyUniforms.uFlash.value = 0.55;
       } else {
+        _lastChargeLv = -1; /* v4.28 C-6: チャージ終了時は Lv キャッシュをリセットする（次のチャージで表示を書き直すため）。 */
         skyUniforms.uStorm.value += (0 - skyUniforms.uStorm.value) * dt * 5;
       }
       /* v4.24 C-6: FOVの変化がしきい値（0.01°）以上のときだけ射影行列を更新する */
@@ -3456,7 +3515,7 @@ scene.remove(m.mesh);
         activeSpeedRatio = normScale * (alwaysDash || isTurbo ? 1.25 : 0.85);
 
         /* スティック／横移動時、カメラをドラッグしていなければ緩やかに背後へオート追従して片手操作を快適化 */
-        if (activeCanvasPointerList().length === 0 && (stickVec.mag > 0.15 || floatStickState.active)) {
+        if (activeCanvasPointerCount() === 0 && (stickVec.mag > 0.15 || floatStickState.active)) {
           camYaw -= dirInX * 0.95 * normScale * dt;
         }
       } else if (autoMove.active) {
@@ -3547,8 +3606,9 @@ scene.remove(m.mesh);
           armP.rotation.x = -legSwing * 0.55;
         }
         if (!charging && curSpd > 22) {
-          camera.fov += (56.2 - camera.fov) * Math.min(1, dt * 6);
-          camera.updateProjectionMatrix();
+          /* v4.28 C-5: FOV の変化が 0.01°未満なら射影行列の更新を省く（v4.24 C-6 と同型。収束値は同一）。 */
+          var _nf = camera.fov + (56.2 - camera.fov) * Math.min(1, dt * 6);
+          if (Math.abs(_nf - camera.fov) > 0.01) { camera.fov = _nf; camera.updateProjectionMatrix(); }
           sprintDustAcc += curSpd * dt;
           if (sprintDustAcc > 7.5) {
             sprintDustAcc = 0;
@@ -3580,14 +3640,17 @@ scene.remove(m.mesh);
       }
 
       var bobY = curSpd > 0.5 ? Math.abs(Math.sin(stridePhase)) * 0.09 : 0;
-      playerMesh.position.set(player.x, terrainY(player.x, player.z) + bobY, player.z);
+      /* v4.28 C-4: このフレームの terrainY を覚えておき、カメラ側の計算で流用する（位置が変わっていれば再計算するため値は同一）。 */
+      _cachedT = terrainY(player.x, player.z); _cachedTX = player.x; _cachedTZ = player.z;
+      playerMesh.position.set(player.x, _cachedT + bobY, player.z);
       playerMesh.rotation.y = player.rotY;
 
       /* フィールド拾得ボール回収＆リスポーン */
-      PICKUPS.forEach(function (pk) {
+      for (var _pki = 0; _pki < PICKUPS.length; _pki++) {
+        var pk = PICKUPS[_pki];
         if (pk.active) {
           pk.mesh.rotation.y = elapsed * 2.2;
-          if (Math.hypot(pk.x - player.x, pk.z - player.z) < 1.85) {
+          if ((pk.x - player.x) * (pk.x - player.x) + (pk.z - player.z) * (pk.z - player.z) < 3.4225) { /* v4.29 P-5: 1.85 の二乗（半径との比較だけのため平方根をやめる） */
             pk.active = false;
             pk.respawn = 18.0;
             pk.mesh.visible = false;
@@ -3603,7 +3666,7 @@ scene.remove(m.mesh);
           pk.respawn -= dt;
           if (pk.respawn <= 0) { pk.active = true; pk.mesh.visible = true; }
         }
-      });
+      } /* v4.29 P-4: forEach → for（毎フレームのコールバック生成をやめる。処理内容・順序は同一） */
 
       /* 飛翔中の四神波動弾更新 ＆ 神話試練クリスタル命中判定 */
       for (var pi = PROJECTILES.length - 1; pi >= 0; pi--) {
@@ -3647,11 +3710,12 @@ scene.remove(m.mesh);
             spawnPillarFX(p.x, p.z, sandBlind ? 0xf6d365 : 0xffffff, 3.2 + p.lv * 0.8, 22, 0.75);
             spawnTigerClaws(p.x, p.z, sandBlind);
             var aoeR = (sandBlind ? 10.5 : 5.8) + p.lv * 1.2;
-            MOBS.forEach(function (m) {
+            for (var _aoei = 0; _aoei < MOBS.length; _aoei++) {
+              var m = MOBS[_aoei];
               if (!m.purified && Math.hypot(m.x - p.x, m.z - p.z) <= aoeR) {
                 damageMob(m, p.dmg, { isCrit: p.isCrit, stunSec: sandBlind ? 5.0 : 1.5, blindSec: sandBlind ? 5.0 : 0 });
               }
-            });
+            } /* v4.29 P-4: forEach → for（処理内容・順序は同一） */
             if (sandBlind) showToast("🌪 白虎・バンカー砂煙目くらまし発動！（周囲5秒スタン）");
             checkSubTrialCrystalHit(p.x, gy + 2, p.z, 6.5);
             scene.remove(p.mesh);
@@ -3681,7 +3745,7 @@ scene.remove(m.mesh);
           for (var mj = 0; mj < MOBS.length; mj++) {
             var mob = MOBS[mj];
             if (mob.purified || p.hitMap[mob.id]) continue;
-            if (Math.hypot(mob.x - p.x, mob.z - p.z) < 1.55) {
+            if ((mob.x - p.x) * (mob.x - p.x) + (mob.z - p.z) * (mob.z - p.z) < 2.4025) { /* v4.29 P-5: 1.55 の二乗（半径との比較だけのため平方根をやめる） */
               p.hitMap[mob.id] = true;
               if (p.club === 0 && (p.lv === 3 || p.isCrit)) {
                 spawnPillarFX(mob.x, mob.z, p.color, 1.8, 18, 0.55);
@@ -3706,11 +3770,12 @@ scene.remove(m.mesh);
       /* 残影AI更新 ＆ 画面端の黒紫脅威オーラ更新 */
       var nearestThreat = 999;
       var detectBase = (gs.specials && gs.specials.hades_stealth) ? 8.5 : 14.5; // ハデスの隠れ兜で感知距離激減！
-      MOBS.forEach(function (m, idx) {
+      for (var idx = 0; idx < MOBS.length; idx++) {
+        var m = MOBS[idx];
         if (m.purified) {
           /* 浄化済みのゴルファーは穏やかに素振り練習をする */
           m.mesh.userData.armPivot.rotation.x = Math.sin(elapsed * 2.2 + idx) * 0.45;
-          return;
+          continue;
         }
         var dx = player.x - m.x, dz = player.z - m.z;
         var dist = Math.hypot(dx, dz);
@@ -3723,7 +3788,7 @@ scene.remove(m.mesh);
         if (m.stunTimer > 0) {
           m.stunTimer = Math.max(0, m.stunTimer - dt);
           m.mesh.rotation.y += dt * 7; // スタン中ふらつき演出
-          return;
+          continue;
         }
 
         if (dist < detectBase || m.alerted) {
@@ -3765,15 +3830,17 @@ scene.remove(m.mesh);
         }
         m.mesh.position.set(m.x, terrainY(m.x, m.z), m.z);
         m.mesh.rotation.y = m.rotY;
-      });
+      } /* v4.29 P-4: forEach → for（処理内容・順序は同一） */
 
       var auraEl = _elThreatAura;
       if(auraEl){
         if (nearestThreat < detectBase + 2) {
           var pulse = 0.45 + 0.35 * Math.sin(elapsed * 7);
           auraEl.style.opacity = String(Math.min(0.92, (1 - nearestThreat / (detectBase + 3)) * 1.25 * pulse + 0.2));
+          _threatFar = false;
         } else {
-          auraEl.style.opacity = "0";
+          /* v4.28 C-9: 遠いときの opacity "0" は初回だけ書き込む。 */
+          if (!_threatFar) { auraEl.style.opacity = "0"; _threatFar = true; }
         }
       }
 
@@ -3802,38 +3869,47 @@ scene.remove(m.mesh);
 
       /* ランドマーク結晶アニメーション＆接触プロンプト判定 */
       var foundLM = null;
-      LANDMARKS.forEach(function (lm) {
+      for (var _lmi = 0; _lmi < LANDMARKS.length; _lmi++) {
+        var lm = LANDMARKS[_lmi];
         if (lm.crystal) {
           lm.crystal.rotation.y = elapsed * 1.8;
           lm.crystal.position.y = 2.1 + Math.sin(elapsed * 2.6 + lm.x) * 0.22;
         }
-        if (Math.hypot(lm.x - player.x, lm.z - player.z) < lm.r) {
+        if (lm.r > 0 && (lm.x - player.x) * (lm.x - player.x) + (lm.z - player.z) * (lm.z - player.z) < lm.r * lm.r) { /* v4.29 P-5: 半径との比較だけのため二乗比較にする */
           foundLM = lm;
         }
-      });
+      } /* v4.29 P-4: forEach → for（処理内容・順序は同一） */
       activePromptLandmark = foundLM;
       var prEl = _elInteractPrompt;
-      if (foundLM) {
-        if(prEl) prEl.style.display = "block";
-        if(_elPromptLabel) _elPromptLabel.textContent = foundLM.label;
-      } else {
-        if(prEl) prEl.style.display = "none";
+      /* v4.28 C-8: プロンプトの表示・文言は対象ランドマークが変わったときだけ書き込む（表示内容は同一）。 */
+      if (foundLM !== _lastPromptLM) {
+        _lastPromptLM = foundLM;
+        if (foundLM) {
+          if(prEl) prEl.style.display = "block";
+          if(_elPromptLabel) _elPromptLabel.textContent = foundLM.label;
+        } else {
+          if(prEl) prEl.style.display = "none";
+        }
       }
 
       if (subTrialTargetMesh && subTrialTargetMesh.visible) {
         subTrialTargetMesh.rotation.y = elapsed * 2.4;
-        subTrialTargetMesh.position.y = terrainY(26, -18) + 3.4 + Math.sin(elapsed * 3) * 0.35;
+        if (_subTrialBaseY === null) _subTrialBaseY = terrainY(26, -18);
+        subTrialTargetMesh.position.y = _subTrialBaseY + 3.4 + Math.sin(elapsed * 3) * 0.35;
       }
-      celestialRings.forEach(function (r, i) { r.rotation.z = elapsed * (0.12 + i * 0.08); });
+      for (var _cri = 0; _cri < celestialRings.length; _cri++) { celestialRings[_cri].rotation.z = elapsed * (0.12 + _cri * 0.08); } /* v4.29 P-4: forEach → for（処理内容・順序は同一） */
 
       /* 環境粒子の舞い */
       var pArr = envParticles.geometry.attributes.position;
+      /* v4.28 C-10: 位置配列へ直接アクセスする（get/set メソッド呼び出しをなくす。粒子の動きは同一）。 */
+      var pData = pArr.array;
       for (var ei = 0; ei < pArr.count; ei++) {
-        var py = pArr.getY(ei) - dt * 0.75;
-        var pxE = pArr.getX(ei) + Math.sin(elapsed + ei) * dt * 0.4;
+        var i3 = ei * 3;
+        var py = pData[i3 + 1] - dt * 0.75;
+        var pxE = pData[i3] + Math.sin(elapsed + ei) * dt * 0.4;
         if (py < 0.5) py = 20;
-        pArr.setY(ei, py);
-        pArr.setX(ei, pxE);
+        pData[i3 + 1] = py;
+        pData[i3] = pxE;
       }
       pArr.needsUpdate = true;
 
@@ -3844,16 +3920,19 @@ scene.remove(m.mesh);
         shakeY = (Math.random() - 0.5) * camShake;
         camShake = Math.max(0, camShake - dt * 1.8);
       }
-      var pyTerrain = terrainY(player.x, player.z);
+      var pyTerrain = (player.x === _cachedTX && player.z === _cachedTZ) ? _cachedT : terrainY(player.x, player.z);
       var cxCam = player.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + shakeX;
       var cyCam = pyTerrain + 1.8 + Math.sin(camPitch) * camDist + shakeY;
       var czCam = player.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist;
       cyCam = Math.max(terrainY(cxCam, czCam) + 1.2, cyCam);
-      camera.position.lerp(new THREE.Vector3(cxCam, cyCam, czCam), Math.min(1, dt * 14));
+      if (!_camTarget) _camTarget = new THREE.Vector3();
+      _camTarget.set(cxCam, cyCam, czCam);
+      camera.position.lerp(_camTarget, Math.min(1, dt * 14)); /* v4.27 P-W3: 一時ベクトルを使い回す（毎フレームの new をなくす） */
       camera.lookAt(player.x, pyTerrain + 1.45, player.z);
 
       renderGauges(elapsed);
-      renderMinimap();
+      /* v4.27 P-W2: ミニマップは約15Hzに間引く（156pxの地図では最高速でも1更新2px未満のため見た目は変わらない。タップ瞬移の座標計算は描画と独立）。 */
+      if (elapsed - _lastMiniT >= 0.066) { _lastMiniT = elapsed; renderMinimap(); }
       renderer.render(scene, camera);
       window.__goatDiagLoopOk("worldAnimate");
       }catch(e){ window.__goatDiagLoopErr("worldAnimate", e); }

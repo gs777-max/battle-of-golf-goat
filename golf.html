@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.25 | WebGL版</title>
+<title>BATTLE OF GOLF - GOAT | 3D Golf Battle v4.29 | WebGL版</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@300;400;700&display=swap">
@@ -13,16 +13,16 @@
 
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.25",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.25",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.25",
+ "three": "./assets/lib/r180/three.module.js?v=4.29",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.29",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.29",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.25",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.25"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.29",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.29"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.25"></script>
-<script src="assets/diag-overlay.js?v=4.25"></script>
+<script type="module" src="assets/lib/r180/bootstrap-golf.js?v=4.29"></script>
+<script src="assets/diag-overlay.js?v=4.29"></script>
 </head>
 <body>
 
@@ -1743,7 +1743,7 @@ html,body{width:100%;height:100%;min-height:-webkit-fill-available;overflow:hidd
   /* マップドック: フィールド右下に常駐し、右サイドへ畳める */
   #mapDock { position: fixed; right: 6px; bottom: calc(var(--sui-h, 74px) + 76px); width: 88px; height: 88px; z-index: 9300; display: none; transition: transform .25s ease; }
   body.goat-duel #mapDock { display: block; }
-  #mapDock .map-strip { position: absolute; left: 0; top: 0; bottom: 0; width: 17px; z-index: 2; background: rgba(8,10,22,.88); border: 1px solid rgba(255,216,117,.45); border-right: none; border-radius: 9px 0 0 9px; color: #ffd875; font-size: 9px; writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center; letter-spacing: 2px; cursor: pointer; }
+  #mapDock .map-strip { position: absolute; left: 0; top: 0; bottom: 0; width: 17px; z-index: 2; background: rgba(8,10,22,.88); border: 1px solid rgba(255,216,117,.45); border-right: none; border-radius: 9px 0 0 9px; color: #ffd875; font-size: 10px; writing-mode: vertical-rl; /* v4.29 A-2: 縦ラベルを読みやすくする（幅 17px 固定のためレイアウト不変） */ display: flex; align-items: center; justify-content: center; letter-spacing: 2px; cursor: pointer; }
   #mapDock #miniMap { position: absolute !important; left: 17px !important; top: 10px !important; width: 68px !important; height: 68px !important; }
   body.map-folded #mapDock { transform: translateX(73px); }
 

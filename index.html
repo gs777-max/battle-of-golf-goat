@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.25）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.29）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -120,6 +120,10 @@
     white-space: nowrap; transition: all 0.18s ease;
     display: inline-flex; align-items: center; gap: 5px;
   }
+  /* v4.29 A-3: デスクトップのみトップバーのボタンを 44px 化する（#topbar 高さ 54px 固定のためレイアウト不変。モバイル 44px バー・短身 38px バー・ダイアログ内のボタンには適用しない）。 */
+  @media (min-width: 901px) and (min-height: 521px) {
+    #topbar .tbtn { min-height: 44px; box-sizing: border-box; }
+  }
   .tbtn:hover:not(:disabled) {
     background: rgba(45, 53, 92, 0.95); border-color: var(--gold);
     box-shadow: 0 0 12px rgba(255,216,117,0.22); transform: translateY(-1px);
@@ -174,7 +178,7 @@
   }
   .narr-badge.male { border-color: rgba(255,205,105,0.5); color: #ffd875; }
   .narr-badge.female { border-color: rgba(175,145,255,0.55); background: rgba(155,115,255,0.1); color: #decaff; }
-  .narr-role { font-size: 9px; letter-spacing: 2px; opacity: 0.8; text-transform: uppercase; }
+  .narr-role { font-size: 10.5px; letter-spacing: 2px; opacity: 1.0; text-transform: uppercase; } /* v4.29 A-2: 役割表示を読みやすくする（バッジは #narr 高さ 52px に収まるためレイアウト不変） */
   .narr-who { font-family: 'Noto Serif JP', serif; font-weight: 900; font-size: 12px; letter-spacing: 1.5px; margin-top: 1px; }
   .narr-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
   #narrText {
@@ -476,7 +480,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.25"></script>
+<script src="assets/diag-overlay.js?v=4.29"></script>
 </head>
 <body>
 
@@ -551,7 +555,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.25【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.29【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -1221,10 +1225,15 @@ var AREA_EVENTS = {
     });
   }
   var t = 0;
+  /* v4.29 P-7: タイトル画面の要素参照と背景グラデーションをキャッシュする（要素は静的なため初回に1回だけ取得。グラデーションは寸法が変わったときだけ作り直す。v4.28 A-3／C-1 と同型）。 */
+  var _titleScrEl = null, _charScrEl = null;
+  var _titleBgGrad = null, _titleBgW = 0, _titleBgH = 0;
   function draw(){
     requestAnimationFrame(draw);
-    var tScr = document.getElementById("titleScr");
-    var cScr = document.getElementById("charScr");
+    if (!_titleScrEl) _titleScrEl = document.getElementById("titleScr");
+    if (!_charScrEl) _charScrEl = document.getElementById("charScr");
+    var tScr = _titleScrEl;
+    var cScr = _charScrEl;
     var vis = (tScr && tScr.style.display !== "none") || (cScr && cScr.style.display !== "none");
     if(!vis){
       if(cv.style.display !== "none"){
@@ -1236,11 +1245,14 @@ var AREA_EVENTS = {
     if(cv.style.display === "none") cv.style.display = "block";
     t += 0.012;
     ctx.clearRect(0,0,W,H);
-    var g = ctx.createRadialGradient(W*0.5, H*0.24, 10, W*0.5, H*0.5, Math.max(W,H)*0.75);
-    g.addColorStop(0, "rgba(62, 48, 18, 0.36)");
-    g.addColorStop(0.45, "rgba(18, 22, 52, 0.24)");
-    g.addColorStop(1, "rgba(4, 5, 12, 0.92)");
-    ctx.fillStyle = g;
+    if (!_titleBgGrad || _titleBgW !== W || _titleBgH !== H) {
+      _titleBgGrad = ctx.createRadialGradient(W*0.5, H*0.24, 10, W*0.5, H*0.5, Math.max(W,H)*0.75);
+      _titleBgGrad.addColorStop(0, "rgba(62, 48, 18, 0.36)");
+      _titleBgGrad.addColorStop(0.45, "rgba(18, 22, 52, 0.24)");
+      _titleBgGrad.addColorStop(1, "rgba(4, 5, 12, 0.92)");
+      _titleBgW = W; _titleBgH = H;
+    }
+    ctx.fillStyle = _titleBgGrad;
     ctx.fillRect(0,0,W,H);
 
     /* 18本の運命の糸の絹のような光波 */
@@ -2266,7 +2278,7 @@ function startGolfBattle(customTarget){
 /* v4.5: 対戦起動ウォッチドッグ。golf からの hello が来ない（CDN失敗等）場合、
    1回だけ自動で読み直し、それでも駄目ならワールド（生存中）へ戻す。タイトルへは落とさない。 */
 /* v4.24: 対戦起動の最終失敗時、トースト内に「もう一度試す」ボタンを付ける。
-   ボタンは onRetry（直前の対戦をもう一度起動する）を呼ぶ。自動消去 4.2秒は従来どおり。 */
+   ボタンは onRetry（直前の対戦をもう一度起動する）を呼ぶ。自動消去はボタン付き10秒・ボタンなし4.2秒（v4.27 U-2）。 */
 function __v45Toast(msg, onRetry){
   var t = document.getElementById("v45Toast");
   if(!t){
@@ -2289,7 +2301,8 @@ function __v45Toast(msg, onRetry){
   }
   t.style.display = "block";
   clearTimeout(t._tm);
-  t._tm = setTimeout(function(){ t.style.display = "none"; }, 4200);
+  /* v4.27 U-2: 「もう一度試す」ボタン付きの失敗トーストは、気づく前に消えないよう10秒表示する（ボタンなしの途中経過トーストは従来の4.2秒のまま）。 */
+  t._tm = setTimeout(function(){ t.style.display = "none"; }, (typeof onRetry === "function") ? 10000 : 4200);
 }
 function __armBattleWatchdog(url){
   if(window.__bwTimer) clearTimeout(window.__bwTimer);

@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.25');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.29');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -1428,19 +1428,28 @@ class ShotController{
     if(this.phase===1&&pvn){
       // 推定飛距離 = クラブmax × パワー%
       const estYd=this.clubMaxDist?Math.round(this.clubMaxDist*(pct/100)):"?";
-      pvn.innerHTML=`<span style="font-size:2.8rem">${pct}%</span><span style="font-size:1.1rem;color:#88ccff;margin-left:8px">${estYd}yd</span>`;
+      /* v4.28 A-8: 整数%が変わったときだけ innerHTML を作り直す（表示は同一）。 */
+      if(pct!==this._lastShotPct){ pvn.innerHTML=`<span style="font-size:2.8rem">${pct}%</span><span style="font-size:1.1rem;color:#88ccff;margin-left:8px">${estYd}yd</span>`; this._lastShotPct=pct; }
       if(pzh){
-        if(pct>=94){pzh.textContent="🌟 UNS圏内！";pzh.style.color="#ff88ff";}
-        else if(pct>=88){pzh.textContent="⭐ SNS圏内";pzh.style.color="#ffdd44";}
-        else if(pct>=78){pzh.textContent="✨ NS圏内";pzh.style.color="#44ff88";}
-        else{pzh.textContent="";pzh.style.color="";}
+        var _pb=pct>=94?3:pct>=88?2:pct>=78?1:0;
+        if(_pb!==this._lastShotBand){
+          this._lastShotBand=_pb;
+          if(_pb===3){pzh.textContent="🌟 UNS圏内！";pzh.style.color="#ff88ff";}
+          else if(_pb===2){pzh.textContent="⭐ SNS圏内";pzh.style.color="#ffdd44";}
+          else if(_pb===1){pzh.textContent="✨ NS圏内";pzh.style.color="#44ff88";}
+          else{pzh.textContent="";pzh.style.color="";}
+        }
       }
     }else if(this.phase===2&&pvn){
       const diff=Math.abs(this.needlePos-this.UNS_CENTER);
-      if(diff<=this.UNS_HALF){pvn.style.color="#ff88ff";pzh&&(pzh.textContent="🌟 UNS！");}
-      else if(diff<=this.SNS_HALF){pvn.style.color="#ffdd44";pzh&&(pzh.textContent="⭐ SNS！");}
-      else if(diff<=this.NS_HALF){pvn.style.color="#44ff88";pzh&&(pzh.textContent="✨ NS！");}
-      else{pvn.style.color="#ffffff";pzh&&(pzh.textContent="");}
+      var _pb2=diff<=this.UNS_HALF?3:diff<=this.SNS_HALF?2:diff<=this.NS_HALF?1:0;
+      if(_pb2!==this._lastShotBand2){
+        this._lastShotBand2=_pb2;
+        if(_pb2===3){pvn.style.color="#ff88ff";pzh&&(pzh.textContent="🌟 UNS！");}
+        else if(_pb2===2){pvn.style.color="#ffdd44";pzh&&(pzh.textContent="⭐ SNS！");}
+        else if(_pb2===1){pvn.style.color="#44ff88";pzh&&(pzh.textContent="✨ NS！");}
+        else{pvn.style.color="#ffffff";pzh&&(pzh.textContent="");}
+      }
     }
     this.raf=requestAnimationFrame(()=>this._anim());
   }
@@ -1598,20 +1607,19 @@ class PuttController{
     const inJustZone = Math.abs(this.needlePos - this.targetPos) <= this.targetRange * 0.5;
 
     if(pvn){
-      pvn.textContent=`${targetRollYd.toFixed(1)}yd (${targetRollFt.toFixed(1)}ft)`;
-      pvn.style.color = inJustZone ? "#00ff88" : (this.needlePos > this.targetPos ? "#ff8888" : "#00eeff");
+      var _pvnTxt=`${targetRollYd.toFixed(1)}yd (${targetRollFt.toFixed(1)}ft)`;
+      var _pvnCol=inJustZone ? "#00ff88" : (this.needlePos > this.targetPos ? "#ff8888" : "#00eeff");
+      /* v4.28 A-8: 表示文字列・色が変わったときだけ書き込む（針の動き自体は毎フレーム更新される）。 */
+      if(_pvnTxt!==this._lastPuttPvn){ pvn.textContent=_pvnTxt; this._lastPuttPvn=_pvnTxt; }
+      if(_pvnCol!==this._lastPuttPvnCol){ pvn.style.color=_pvnCol; this._lastPuttPvnCol=_pvnCol; }
     }
     if(pzh){
-      if(inJustZone){
-        pzh.textContent=`🎯 ジャスト! (${diffSign}yd)`;
-        pzh.style.color="#00ff88";
-      }else if(this.needlePos < this.targetPos){
-        pzh.textContent=`ショート (${diffSign}yd)`;
-        pzh.style.color="#66ddff";
-      }else{
-        pzh.textContent=`オーバー (${diffSign}yd)`;
-        pzh.style.color="#ff8888";
-      }
+      var _pzhTxt, _pzhCol;
+      if(inJustZone){ _pzhTxt=`🎯 ジャスト! (${diffSign}yd)`; _pzhCol="#00ff88"; }
+      else if(this.needlePos < this.targetPos){ _pzhTxt=`ショート (${diffSign}yd)`; _pzhCol="#66ddff"; }
+      else { _pzhTxt=`オーバー (${diffSign}yd)`; _pzhCol="#ff8888"; }
+      if(_pzhTxt!==this._lastPuttPzh){ pzh.textContent=_pzhTxt; this._lastPuttPzh=_pzhTxt; }
+      if(_pzhCol!==this._lastPuttPzhCol){ pzh.style.color=_pzhCol; this._lastPuttPzhCol=_pzhCol; }
     }
 
     this.raf=requestAnimationFrame(()=>this._anim());
@@ -2010,7 +2018,8 @@ class GolfGame{
     if(last&&last.distanceTo(p)<0.15)return;
     this._curTracePoints.push(new THREE.Vector3(p.x,p.y,p.z));
     if(this._curTracePoints.length<3)return;
-    if(this._curTraceLine){this.scene.remove(this._curTraceLine);if(this._curTraceLine.type==='Group'){this._curTraceLine.children.forEach(c=>{if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();});}else if(this._curTraceLine.geometry){this._curTraceLine.geometry.dispose();if(this._curTraceLine.material){try{this._curTraceLine.material.dispose();}catch(e){}}}} /* v4.14: Lineフォールバック時もマテリアルを解放（従来はgeometryのみでLineBasicMaterialが飛行フレーム数だけ漏れていた） */
+    if(this._curTraceLine){this.scene.remove(this._curTraceLine);if(this._curTraceLine.type==='Group'){ /* v4.28 A-2: Group の子は使い回しマテリアルを使うためジオメトリだけ解放し、マテリアルは解放しない。 */
+      this._curTraceLine.children.forEach(c=>{if(c.geometry)c.geometry.dispose();});this._curTraceLine.clear();}else if(this._curTraceLine.geometry){this._curTraceLine.geometry.dispose();if(this._curTraceLine.material){try{this._curTraceLine.material.dispose();}catch(e){}}}} /* v4.14: Lineフォールバック時もマテリアルを解放（従来はgeometryのみでLineBasicMaterialが飛行フレーム数だけ漏れていた） */
     // フェーズ別カラー：キャリー=黄、ラン=緑、パット=水色
     const col=this.ball.phase==="putt_roll"?0x44ddff:this.ball.phase==="run"?0x66ff66:0xffdd33;
     try{
@@ -2018,15 +2027,20 @@ class GolfGame{
       const curve=new THREE.CatmullRomCurve3(this._curTracePoints);
       const segs = Math.min(72, this._curTracePoints.length * 2);
       // 外側グロー
-      const glowGeo = new THREE.TubeGeometry(curve, segs, 0.08, 6, false);
+      /* v4.28 A-2: グロー／コアのマテリアルと Group を使い回す（毎フレームの生成＋破棄をやめる。色・太さ・透明度は同一。ジオメトリだけ作り直す）。 */
+      if(!this._traceMats) this._traceMats={};
       const glowCol = this.ball.phase==="putt_roll"?0x00ccff:this.ball.phase==="run"?0x33ff66:0xffaa00;
-      const glowMat = new THREE.MeshBasicMaterial({color:glowCol, transparent:true, opacity:0.65});
+      if(!this._traceMats[glowCol]) this._traceMats[glowCol]=new THREE.MeshBasicMaterial({color:glowCol, transparent:true, opacity:0.65});
+      if(!this._traceMats.white) this._traceMats.white=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.95});
+      if(!this._traceGroup) this._traceGroup=new THREE.Group();
+      const glowGeo = new THREE.TubeGeometry(curve, segs, 0.08, 6, false);
+      const glowMat = this._traceMats[glowCol];
       const glowMesh = new THREE.Mesh(glowGeo, glowMat);
       // 内側コア（純白）
       const coreGeo = new THREE.TubeGeometry(curve, segs, 0.035, 6, false);
-      const coreMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.95});
+      const coreMat = this._traceMats.white;
       const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-      const traceGroup = new THREE.Group();
+      const traceGroup = this._traceGroup;
       traceGroup.add(glowMesh); traceGroup.add(coreMesh);
       this._curTraceLine = traceGroup;
       this.scene.add(this._curTraceLine);
@@ -2864,7 +2878,7 @@ class GolfGame{
           this._addTree(fwWidth/2 + 12 + (Math.abs(z)%7), z, gen, 1.5, "broad");
           this._addTree(-fwWidth/2 - 14 - (Math.abs(z)%5), z - 12, gen, 1.35, "pine");
           for(const sd of [-1, 1]){
-            const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.35, 6), new THREE.MeshBasicMaterial({color: TODA_PALETTE.ob}));
+            const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.35, 6), new THREE.MeshStandardMaterial({color: TODA_PALETTE.ob, roughness: 0.95, flatShading: true})); /* v4.28 D-4a: OB白杭に面の陰影を出す（色・形・配置・個数は不変） */
             stk.position.set(sd*(fwWidth/2 + 4.8), 0.68, z);
             this.scene.add(stk);
           }
@@ -2957,13 +2971,13 @@ class GolfGame{
 
         // ⑤ 外周OB白杭（右サイドおよびコーナー奥）
         for(let z = 10; z >= -230; z -= 18){
-          const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), new THREE.MeshBasicMaterial({color: TODA_PALETTE.ob}));
+          const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), new THREE.MeshStandardMaterial({color: TODA_PALETTE.ob, roughness: 0.95, flatShading: true})); /* v4.28 D-4a: OB白杭に面の陰影を出す（色・形・配置・個数は不変） */
           stk.position.set(leg1W/2 + 4, 0.7, z);
           this.scene.add(stk);
         }
         // 突き当たり奥（Z = -230以奥）のOB白杭
         for(let x = -leg1W/2; x <= leg1W/2 + 4; x += 10){
-          const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), new THREE.MeshBasicMaterial({color: TODA_PALETTE.ob}));
+          const stk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), new THREE.MeshStandardMaterial({color: TODA_PALETTE.ob, roughness: 0.95, flatShading: true})); /* v4.28 D-4a: OB白杭に面の陰影を出す（色・形・配置・個数は不変） */
           stk.position.set(x, 0.7, -228);
           this.scene.add(stk);
         }
@@ -2975,7 +2989,7 @@ class GolfGame{
       teeA.position.set(0, 0.12, 0);
       this.scene.add(teeA);
       for(const mx of [-2.4, 2.4]){
-        const mk = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshLambertMaterial({color: 0x2288ff}));
+        const mk = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshStandardMaterial({color: 0x2288ff, roughness: 0.9})); /* v4.29 D-5b: 戸田の青マーカー（水テクスチャに置換されていた）を Standard にする */
         mk.position.set(mx, 0.4, 0);
         this.scene.add(mk);
       }
@@ -2987,7 +3001,7 @@ class GolfGame{
       teeB.position.set(inTeeCoord.x, 0.12, inTeeCoord.z);
       this.scene.add(teeB);
       for(const mx of [-2.4, 2.4]){
-        const mk = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshLambertMaterial({color: 0xcc2222}));
+        const mk = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshStandardMaterial({color: 0xcc2222, roughness: 0.9})); /* v4.29 D-5b: 戸田の赤マーカー（Lambert のままだった）を Standard にして青と統一する */
         mk.position.set(inTeeCoord.x+mx, 0.4, inTeeCoord.z);
         this.scene.add(mk);
       }
@@ -3396,8 +3410,8 @@ class GolfGame{
 
     // 白杭（14m間隔・立体的）— ★線刷新フェーズ1: 白帯と同じ中心線オフセット列に置き、各杭を白帯と同じ高さ基準で接地
     // (従来は直線配置・固定 y。描画のみ)
-    const stkMatB=new THREE.MeshBasicMaterial({color:0xf9f9f5});
-    const stkMatT=new THREE.MeshBasicMaterial({color:0xffffff});
+    const stkMatB=new THREE.MeshStandardMaterial({color:0xf9f9f5,roughness:0.95,flatShading:true}); /* v4.28 D-4a: OB白杭の胴に面の陰影を出す（色・形・配置・個数は不変） */
+    const stkMatT=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.95}); /* v4.28 D-4a: 杭頭は球のため flatShading なし（多面体状に見えないよう滑らかなまま） */
     const stkMatS=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.18});
     const stakePts=[];let stkAcc=0,stkPrev=obSamples[0]||{x:0,z:0,px:1,pz:0};
     if(obSamples.length)stakePts.push(obSamples[0]);
@@ -3511,7 +3525,7 @@ const bCntGreen=Math.min(bunkerCount,5);
       for(let r=0;r<3;r++){
         const rim=new THREE.Mesh(
           new THREE.TorusGeometry(bk.r*rimR[r],rimW[r],9,30),
-          new THREE.MeshBasicMaterial({color:rimColors[r]}));
+          new THREE.MeshStandardMaterial({color:rimColors[r],roughness:0.95,flatShading:true})); /* v4.27 D-3c: 縁芝に面の陰影を出す（色・形・配置は不変） */
         rim.rotation.x=Math.PI/2;rim.position.set(bk.x,gy+0.22-r*0.04,bk.z);
         this.scene.add(rim);
       }
@@ -3609,7 +3623,7 @@ const bCntGreen=Math.min(bunkerCount,5);
         const sc=[0x484e38,0x3a4430,0x52583e,0x404838][s%4];
         const stone=new THREE.Mesh(
           new THREE.DodecahedronGeometry(0.5+Math.random()*0.8,0),
-          new THREE.MeshBasicMaterial({color:sc}));
+          new THREE.MeshStandardMaterial({color:sc,roughness:0.95,flatShading:true})); /* v4.27 D-3a: 護岸石に面の陰影を出す（色・形・配置は不変） */
         stone.scale.set(1,0.4+Math.random()*0.4,1);
         stone.position.set(wx+Math.cos(ang)*er,-0.05,wz2+Math.sin(ang)*ver);
         stone.rotation.y=Math.random()*Math.PI;this.scene.add(stone);
@@ -3620,7 +3634,7 @@ const bCntGreen=Math.min(bunkerCount,5);
         const er=wW/2+2.2,ver=wH/2+2.0;
         const wg=new THREE.Mesh(
           new THREE.CylinderGeometry(0.06,0.22,0.55+Math.random()*0.45,5),
-          new THREE.MeshBasicMaterial({color:0x1e5c10}));
+          new THREE.MeshStandardMaterial({color:0x1e5c10,roughness:0.95,flatShading:true})); /* v4.27 D-3a: 水際の芝に面の陰影を出す（色・形・配置は不変） */
         wg.position.set(wx+Math.cos(ang)*er,0.2,wz2+Math.sin(ang)*ver);this.scene.add(wg);
       }
 
@@ -3629,11 +3643,11 @@ const bCntGreen=Math.min(bunkerCount,5);
         const yg=new THREE.Group();
         const yb=new THREE.Mesh(
           new THREE.CylinderGeometry(0.08,0.1,1.32,7),
-          new THREE.MeshBasicMaterial({color:0xffdd00}));
+          new THREE.MeshStandardMaterial({color:0xffdd00,roughness:0.95,flatShading:true})); /* v4.28 D-4b: 黄色杭の胴に面の陰影を出す（色・形・配置・個数は不変） */
         yb.position.y=0.66;yg.add(yb);
         const yt=new THREE.Mesh(
           new THREE.SphereGeometry(0.12,7,5),
-          new THREE.MeshBasicMaterial({color:0xffc800}));
+          new THREE.MeshStandardMaterial({color:0xffc800,roughness:0.95})); /* v4.28 D-4b: 杭頭は球のため flatShading なし（多面体状に見えないよう滑らかなまま） */
         yt.position.y=1.36;yg.add(yt);
         const side=s%2===0;
         const yx=wx+(side?-wW/2-1.6:wW/2+1.6);
@@ -3750,10 +3764,10 @@ const bCntGreen=Math.min(bunkerCount,5);
     for(const sx of[-2.6,2.6]){
       const mk=new THREE.Group();
       const mb=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.50,10),
-        new THREE.MeshLambertMaterial({color:mkCol}));
+        new THREE.MeshStandardMaterial({color:mkCol,roughness:0.9,flatShading:true})); /* v4.29 D-5b: ティーマーカーを直接 Standard にする（HQ の水テクスチャ誤分類を解消。色・形・配置は不変） */
       mb.position.y=0.25;mk.add(mb);
       const mt=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8),
-        new THREE.MeshLambertMaterial({color:mkCol2}));
+        new THREE.MeshStandardMaterial({color:mkCol2,roughness:0.9})); /* v4.29 D-5b: 球は Standard（flatShading なし・滑らかなまま） */
       mt.position.y=0.58;mk.add(mt);
       mk.position.set(sx,0.3,-2);this.scene.add(mk);
     }
@@ -3887,7 +3901,7 @@ const bCntGreen=Math.min(bunkerCount,5);
         const gy2=gen.getHeight(rx+TW/2,-rz-TH/2);
         const rock=new THREE.Mesh(
           new THREE.DodecahedronGeometry(rs,0),
-          new THREE.MeshBasicMaterial({color:[0x5e5850,0x686058,0x505048,0x6a6260][i%4]}));
+          new THREE.MeshStandardMaterial({color:[0x5e5850,0x686058,0x505048,0x6a6260][i%4],roughness:0.95,flatShading:true})); /* v4.27 D-3a: 岩に面の陰影を出す（色・形・配置は不変） */
         rock.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,0);
         rock.position.set(rx,gy2+rs*0.26,rz);this.scene.add(rock);
       }
@@ -3937,12 +3951,12 @@ const bCntGreen=Math.min(bunkerCount,5);
       // Augusta→橋（木製・Rae's Creek橋を再現）
       if(isRaeCreek&&!mob){
         const bridgeGeo=new THREE.BoxGeometry(TW*0.45,0.25,wH*0.9);
-        const bridge=new THREE.Mesh(bridgeGeo,new THREE.MeshLambertMaterial({color:rain?0x4a3818:0x6a5028}));
+        const bridge=new THREE.Mesh(bridgeGeo,new THREE.MeshStandardMaterial({color:rain?0x4a3818:0x6a5028,roughness:0.9})); /* v4.29 D-5f: 橋を Standard にする（色・形・配置は不変） */
         bridge.position.set(0,0.28,wZf); this.scene.add(bridge);
         // 橋のレール
         for(const bx of [-TW*0.21,TW*0.21]){
           const rail=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.5,wH),
-            new THREE.MeshLambertMaterial({color:0x5a4018}));
+            new THREE.MeshStandardMaterial({color:0x5a4018,roughness:0.9})); /* v4.29 D-5f: 橋のレールを Standard にする */
           rail.position.set(bx,0.55,wZf); this.scene.add(rail);
         }
       }
@@ -3973,14 +3987,14 @@ const bCntGreen=Math.min(bunkerCount,5);
       ifringe.position.set(gpx,1.35,gpz); this.scene.add(ifringe);
       // 橋（桟橋）
       const bridgeGeo=new THREE.BoxGeometry(3.5,0.3,14);
-      const bridgeMat=new THREE.MeshLambertMaterial({color:rain?0x5a4a2a:0x7a6038});
+      const bridgeMat=new THREE.MeshStandardMaterial({color:rain?0x5a4a2a:0x7a6038,roughness:0.9}); /* v4.29 D-5f: アイランドグリーンの橋を Standard にする */
       const bridge=new THREE.Mesh(bridgeGeo,bridgeMat);
       bridge.position.set(gpx,0.7,gpz+TH*0.08); this.scene.add(bridge);
       // 橋の柵
       if(!mob){
         for(let pi=0;pi<4;pi++){
           const post=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.2,5),
-            new THREE.MeshLambertMaterial({color:0x8a6828}));
+            new THREE.MeshStandardMaterial({color:0x8a6828,roughness:0.9})); /* v4.29 D-5f: 橋の柵の柱を Standard にする */
           post.position.set(gpx+(pi<2?-1.5:1.5),1.35,gpz+TH*0.06+pi%2*5);
           this.scene.add(post);
         }
@@ -4036,11 +4050,11 @@ const bCntGreen=Math.min(bunkerCount,5);
         const sx2=-(TW*0.45+Math.random()*1.5);
         const stkH=1.4+Math.random()*0.3;
         const stk=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,stkH,5),
-          new THREE.MeshLambertMaterial({color:0xf0f0f0}));
+          new THREE.MeshStandardMaterial({color:0xf0f0f0,roughness:0.95,flatShading:true})); /* v4.29 D-5a: OB左白杭に面の陰影を出す（色・形・配置・本数は不変。D-4a と同じ方式） */
         stk.position.set(sx2,this.getGY(sx2,sz2)+stkH*0.5,sz2);this.scene.add(stk);
         // 杭のトップに白ペイント感（少し太め）
         const top=new THREE.Mesh(new THREE.SphereGeometry(0.11,5,4),
-          new THREE.MeshLambertMaterial({color:0xffffff}));
+          new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.95})); /* v4.29 D-5a: 杭頭は Standard（flatShading なし・滑らかなまま） */
         top.position.set(sx2,this.getGY(sx2,sz2)+stkH+0.05,sz2);this.scene.add(top);
       }
     }
@@ -4066,8 +4080,8 @@ const bCntGreen=Math.min(bunkerCount,5);
     const trunkH=(2.6+rnd()*1.6)*sm;
     const trunk=new THREE.Mesh(
       new THREE.CylinderGeometry(0.22*sm,0.40*sm,trunkH,7),
-      new THREE.MeshLambertMaterial({color:rain?0x33241a:0x402a14})
-    );
+      new THREE.MeshStandardMaterial({color:rain?0x33241a:0x402a14,roughness:1.0,flatShading:true})
+    ); /* v4.29 D-5c: 木の幹に面の陰影を出す（色・形・配置・本数は不変。樹冠と同じ方式） */
     trunk.position.set(x,gy+trunkH*0.5,z);
     trunk.castShadow=true; trunk.receiveShadow=true; /* v4.20 パターン1: モバイルでも影を出す */
     this.scene.add(trunk);
@@ -4138,6 +4152,13 @@ const bCntGreen=Math.min(bunkerCount,5);
     if(!this._flagMesh || !this._flagBaseGeo) return;
     const posAttr = this._flagMesh.geometry.attributes.position;
     const baseAttr = this._flagBaseGeo.attributes.position;
+    /* v4.29 P-2: 頂点の基点座標と振幅係数は旗の生成時に決まる定数のため、初回（旗が作り直されたとき）に取り出して使い回す（波形の sin／cos 計算は従来どおり毎フレーム行う。旗の動きは同一）。 */
+    if(this._flagBaseCacheGeo!==this._flagBaseGeo){
+      const _fn=baseAttr.count;
+      this._flagBaseOx=new Float32Array(_fn); this._flagBaseOy=new Float32Array(_fn); this._flagBaseF=new Float32Array(_fn);
+      for(let _fi=0;_fi<_fn;_fi++){ const _fox=baseAttr.getX(_fi); this._flagBaseOx[_fi]=_fox; this._flagBaseOy[_fi]=baseAttr.getY(_fi); this._flagBaseF[_fi]=Math.max(0,(_fox+1.4)/2.8); }
+      this._flagBaseCacheGeo=this._flagBaseGeo;
+    }
     const windSpeed = (this.weather && this.weather.windStrength) ? this.weather.windStrength : 3.0;
     const time = performance.now() * 0.005;
     const waveFreq = 2.4;
@@ -4145,10 +4166,10 @@ const bCntGreen=Math.min(bunkerCount,5);
     const waveAmp = 0.08 + Math.min(0.24, windSpeed * 0.035);
 
     for(let i = 0; i < posAttr.count; i++){
-      const ox = baseAttr.getX(i);
-      const oy = baseAttr.getY(i);
+      const ox = this._flagBaseOx[i];
+      const oy = this._flagBaseOy[i];
       // ポール側（ox = -1.4）は固定、先端（ox = 1.4）に向かって振幅拡大
-      const factor = Math.max(0, (ox + 1.4) / 2.8);
+      const factor = this._flagBaseF[i];
       const wave = Math.sin(time * waveSpeed + ox * waveFreq) * Math.cos(time * waveSpeed * 0.5 + oy * 1.5) * factor * waveAmp;
       posAttr.setZ(i, wave);
     }
@@ -4235,8 +4256,8 @@ const bCntGreen=Math.min(bunkerCount,5);
     const poleCol=isAugPin?0xf0f0f0:isStAPin?0xd0d0d0:0xfafafa;
     const pole=new THREE.Mesh(
       new THREE.CylinderGeometry(0.1,0.12,7.5,8),
-      new THREE.MeshLambertMaterial({color:poleCol})
-    );
+      new THREE.MeshStandardMaterial({color:poleCol,roughness:0.9})
+    ); /* v4.29 D-5e: フラッグポールを Standard にする（flatShading なし。色・形・配置は不変） */
     pole.position.set(gp.x,gp.y+3.75,gp.z);
     this.scene.add(pole);
 
@@ -4256,8 +4277,8 @@ const bCntGreen=Math.min(bunkerCount,5);
     // 旗頭に輝くゴールデンボールマーカー（遠くからでもピン位置が一目瞭然）
     const topMarker=new THREE.Mesh(
       new THREE.SphereGeometry(0.35,12,8),
-      new THREE.MeshBasicMaterial({color:0xfff044})
-    );
+      new THREE.MeshStandardMaterial({color:0xfff044,roughness:0.35,metalness:0.1})
+    ); /* v4.29 D-5d: 旗頭の金球に光の明暗を付ける（flatShading なし・滑らかなまま。色・形・配置は不変） */
     topMarker.position.set(gp.x,gp.y+8.2,gp.z);
     this.scene.add(topMarker);
 
@@ -4993,10 +5014,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     // ラインをエイム方向へ向ける
     this.puttLineMesh.rotation.y=-rad;
     // 傾斜情報
-    const si=document.getElementById("slopeInfo");
+    const si=this._dom().slopeInfo; /* v4.28 A-7: _dom() のキャッシュを使う */
     const slope=Math.abs(this.aimAngle)<5?"ほぼフラット":this.aimAngle<-90||this.aimAngle>90?"反対方向":this.aimAngle<0?"左傾斜":"右傾斜";
     if(si)si.textContent=slope;
-    const pf=document.getElementById("puttDistFt");
+    const pf=this._dom().puttDistFt; /* v4.28 A-7: _dom() のキャッシュを使う */
     if(pf)pf.textContent=Math.round(this._distToPin()*3)+" ft";
   }
 
@@ -5109,10 +5130,12 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     const bp=this.ball.position;
     const pin=this.pinPos||new THREE.Vector3(0,0,-100);
     const tiltRad=(this.camTilt||0)*Math.PI/180;
+    /* v4.28 A-1: カメラ計算の一時ベクトルを使い回す（毎フレームの new／clone をなくす。ワールド側 P-W3 と同型。計算式・代入値は同一で、ベクトルはこのフレーム内でしか使わない）。 */
+    const _ct=this._camTmp||(this._camTmp={toPin:new THREE.Vector3(),flightDir:new THREE.Vector3(),blendDir:new THREE.Vector3(),back:new THREE.Vector3(),camPos:new THREE.Vector3(),flagTop:new THREE.Vector3(),look:new THREE.Vector3(),toPinFP:new THREE.Vector3(),lookFP:new THREE.Vector3()});
 
     if(this.cameraMode==="follow"){
       // ボール→ピン方向の単位ベクトル（XZ平面）
-      const toPin=new THREE.Vector3(pin.x-bp.x,0,pin.z-bp.z);
+      const toPin=_ct.toPin.set(pin.x-bp.x,0,pin.z-bp.z);
       const distToPin=toPin.length();
       toPin.normalize();
       // ピンが非常に近い（ボールがピン上=ホールイン直後等）場合のフォールバック
@@ -5127,25 +5150,25 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
           const t=this.ball.carryElapsed/Math.max(this.ball.carryTime,0.01);
           const heightBonus=Math.sin(Math.PI*t)*8;
 
-          const flightDir=new THREE.Vector3(
+          const flightDir=_ct.flightDir.set(
             this.ball.carryEndPos.x-this.ball.carryStartPos.x,0,
             this.ball.carryEndPos.z-this.ball.carryStartPos.z
           ).normalize();
           // 進行方向とピン方向の中間（ボールが大きく曲がってもピン側に視野を保つ）
-          const blendDir=flightDir.clone().lerp(safeToPin,0.35).normalize();
+          const blendDir=_ct.blendDir.copy(flightDir).lerp(safeToPin,0.35).normalize();
 
-          const back=blendDir.clone().multiplyScalar(-pullBack)
-            .add(new THREE.Vector3(0,baseUp+heightBonus+tiltRad*14,0));
-          this.camera.position.lerp(bp.clone().add(back),0.045);
+          const back=_ct.back.copy(blendDir).multiplyScalar(-pullBack);
+          back.y=baseUp+heightBonus+tiltRad*14;
+          this.camera.position.lerp(_ct.camPos.copy(bp).add(back),0.045);
           // ボールとピンの中間目標点を注視（グリーンを画角に収める）
-          const lookTarget=bp.clone().lerp(pin,0.22);
+          const lookTarget=_ct.look.copy(bp).lerp(pin,0.22);
           this.camera.lookAt(lookTarget);
         }else{
           // ラン中：低めだがピン方向を見失わないよう調整
-          const backRun=safeToPin.clone().multiplyScalar(-9)
-            .add(new THREE.Vector3(0,9+tiltRad*10,0));
-          this.camera.position.lerp(bp.clone().add(backRun),0.12);
-          const lookTargetRun=bp.clone().lerp(pin,0.18);
+          const backRun=_ct.back.copy(safeToPin).multiplyScalar(-9);
+          backRun.y=9+tiltRad*10;
+          this.camera.position.lerp(_ct.camPos.copy(bp).add(backRun),0.12);
+          const lookTargetRun=_ct.look.copy(bp).lerp(pin,0.18);
           this.camera.lookAt(lookTargetRun);
         }
       }else{
@@ -5154,10 +5177,9 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         // camOrbitで左右に自由回転、camTiltで上下に視野変更可能
         const orbitRad=(this.camOrbit||0)*Math.PI/180;
         // ピン方向を orbitRad だけ回転させたものを後方ベクトルにする
-        const backDir=safeToPin.clone();
-        const rotatedX=backDir.x*Math.cos(orbitRad)-backDir.z*Math.sin(orbitRad);
-        const rotatedZ=backDir.x*Math.sin(orbitRad)+backDir.z*Math.cos(orbitRad);
-        const finalBackDir=new THREE.Vector3(rotatedX,0,rotatedZ).normalize();
+        const rotatedX=safeToPin.x*Math.cos(orbitRad)-safeToPin.z*Math.sin(orbitRad);
+        const rotatedZ=safeToPin.x*Math.sin(orbitRad)+safeToPin.z*Math.cos(orbitRad);
+        const finalBackDir=_ct.back.set(rotatedX,0,rotatedZ).normalize();
 
         // 距離に応じた引きと高度
         const pullBackStill=this.gameMode==="putt"
@@ -5184,13 +5206,13 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         // カメラ高度は「カメラ足元地面 + 4.2yd」「途中の丘の最高点 + 3.0yd」「ボールからの基本高度」の最大値に自動リフトアップ！
         // これにより、手前の丘や起伏でグリーンフラッグが見えなくなる現象を完全に根絶！
         const minSafeCamY = Math.max(camGroundY + 4.2, maxTerrainBetween + 3.0, bp.y + heightStill);
-        const camPos = new THREE.Vector3(targetCamX, minSafeCamY, targetCamZ);
+        const camPos = _ct.camPos.set(targetCamX, minSafeCamY, targetCamZ);
         this.camera.position.lerp(camPos, 0.12);
 
         // 注視点：ピンフラッグ頭部（pin.y + 2.5）とボールをバランスよく収め、常にフラッグが視界中央に堂々と映る
-        const flagTop = new THREE.Vector3(pin.x, pin.y + 2.5, pin.z);
+        const flagTop = _ct.flagTop.set(pin.x, pin.y + 2.5, pin.z);
         const lookBlend = this.gameMode==="putt" ? 0.35 : Math.max(0.32, 0.48 - distToPin * 0.0004);
-        const lookTargetStill = bp.clone().lerp(flagTop, lookBlend);
+        const lookTargetStill = _ct.look.copy(bp).lerp(flagTop, lookBlend);
         this.camera.lookAt(lookTargetStill);
       }
     }else{
@@ -5198,11 +5220,11 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       if(this.playerMesh){
         const pp=this.playerMesh.position;
         this.camera.position.set(pp.x,pp.y+1.65,pp.z);
-        const toPinFP=new THREE.Vector3(pin.x-pp.x,0,pin.z-pp.z).normalize();
+        const toPinFP=_ct.toPinFP.set(pin.x-pp.x,0,pin.z-pp.z).normalize();
         const orbitRadFP=(this.camOrbit||0)*Math.PI/180;
         const rx=toPinFP.x*Math.cos(orbitRadFP)-toPinFP.z*Math.sin(orbitRadFP);
         const rz=toPinFP.x*Math.sin(orbitRadFP)+toPinFP.z*Math.cos(orbitRadFP);
-        const lookAt=new THREE.Vector3(
+        const lookAt=_ct.lookFP.set(
           pp.x+rx*60,
           pp.y+1.2+tiltRad*20,
           pp.z+rz*60
@@ -5237,28 +5259,35 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     if(!this.rainParticles)return;
     const pos=this.rainParticles.geometry.attributes.position;
     const wx=this.weather.windVec.x*0.1,wz=this.weather.windVec.z*0.1;
+    /* v4.28 A-11: 位置配列へ直接アクセスする（get/set メソッド呼び出しをなくす。雨の動きは同一）。 */
+    const arr=pos.array, dy=32*dt;
     for(let i=0;i<pos.count;i++){
-      pos.setY(i,pos.getY(i)-32*dt);pos.setX(i,pos.getX(i)+wx);pos.setZ(i,pos.getZ(i)+wz);
-      if(pos.getY(i)<0){pos.setY(i,90);pos.setX(i,(Math.random()-0.5)*220);}
+      const i3=i*3;
+      arr[i3+1]-=dy;arr[i3]+=wx;arr[i3+2]+=wz;
+      if(arr[i3+1]<0){arr[i3+1]=90;arr[i3]=(Math.random()-0.5)*220;}
     }
     pos.needsUpdate=true;
   }
 
   _drawMiniMap(){
-    const cv = document.getElementById("miniMapCanvas");
+    const cv = this._dom().miniMapCanvas;
     if(!cv) return;
-    const ctx = cv.getContext("2d");
+    const ctx = this._dom().miniMapCtx;
     if(!ctx) return;
 
     const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
 
     // 背景：ラフ（淡黄緑・アコーディア公式レイアウト図の紙面表現）※線ブラッシュアップ
-    const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.42, 6, W * 0.5, H * 0.5, W * 0.78);
-    bgGrad.addColorStop(0, "#dff29e");
-    bgGrad.addColorStop(0.65, "#c4e06a");
-    bgGrad.addColorStop(1, "#a9cc4e");
-    ctx.fillStyle = bgGrad;
+    /* v4.28 A-3: 背景グラデーションは寸法が変わらない限り使い回す（ワールド側 P-W1 と同型。色・範囲は同一）。 */
+    if(!this._mmBgGrad || this._mmBgGradW !== W || this._mmBgGradH !== H){
+      this._mmBgGrad = ctx.createRadialGradient(W * 0.5, H * 0.42, 6, W * 0.5, H * 0.5, W * 0.78);
+      this._mmBgGrad.addColorStop(0, "#dff29e");
+      this._mmBgGrad.addColorStop(0.65, "#c4e06a");
+      this._mmBgGrad.addColorStop(1, "#a9cc4e");
+      this._mmBgGradW = W; this._mmBgGradH = H;
+    }
+    ctx.fillStyle = this._mmBgGrad;
     ctx.fillRect(0, 0, W, H);
 
     const isTodaCourse = !!(this.currentCourse && (this.currentCourse.id === "toda" || this.currentCourse.id === "toda_dark" || this.currentCourse.isToda2Way));
@@ -5813,18 +5842,44 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
       ctx.stroke();
     }
   }// ===== 常時残り距離表示（全クラブ・パター完全一致システム） =====
+  /* v4.26 C-6c: 対戦メインループで毎フレーム探していた DOM 要素を初回にキャッシュする
+     （v4.24 C-6 の PowerMeter／v4.25 C-6b の PuttController と同じ方式。
+      _updateDistPanel 12回＋_updateFlightBar 1回＋_drawMiniMap 2回＋_updateCompass 1回＋
+      _updateAimAngleDisplay 1回＝毎フレーム17回と、75ms間隔の updateBattleHUD 10回/回を 0回にする。
+      golf.html の要素は静的でホール替わりでも作り直されないため使い回して安全。
+      要素が無い場合は null を返し、呼び出し側は従来どおり null チェックする）。 */
+  _dom(){
+    if(!this._domEls){ const g=(id)=>document.getElementById(id);
+      const mm=g("miniMapCanvas"), cp=g("compassCanvas");
+      this._domEls={
+      distPanel:g("distPanel"),distNum:g("distNum"),distUnit:g("distUnit"),
+      distSub:g("distSub"),distBreak:g("distBreak"),distLabel:g("distLabel"),
+      clubBar:g("clubDistBar"),clubNum:g("clubDistBarNum"),clubCarry:g("clubDistCarry"),
+      clubRun:g("clubDistRun"),clubLbl:g("clubDistBarLabel"),hudDist:g("hudDist"),
+      flightBar:g("flightBar"),aimDegPad:g("aimDegPad"),
+      miniMapCanvas:mm,miniMapCtx:mm?mm.getContext("2d"):null,
+      compassCanvas:cp,compassCtx:cp?cp.getContext("2d"):null,
+      slopeInfo:g("slopeInfo"),puttDistFt:g("puttDistFt")}; } /* v4.28 A-7: _updatePuttLine の2要素もキャッシュする（v4.26 C-6c と同型） */
+    return this._domEls;
+  }
+
   _updateDistPanel(){
     if(!this.ball||!this.pinPos)return;
     const distYd=Math.round(this._distToPin());
     const distM=Math.round(distYd*0.9144);
     const distFt=Math.round(distYd*3);
-    const distPanel=document.getElementById("distPanel");
-    const numEl=document.getElementById("distNum");
-    const unitEl=document.getElementById("distUnit");
-    const subEl=document.getElementById("distSub");
-    const brkEl=document.getElementById("distBreak");
-    const lblEl=document.getElementById("distLabel");
-    const clubBar=document.getElementById("clubDistBar");
+    /* v4.28 A-4: 表示に影響する値が前回と同一なら DOM 書き込みをすべて省く（飛行中は距離が毎フレーム変わるため従来どおり毎回更新される。推定値はクラブ・天候・GOAT倍率をキーに含める）。 */
+    var _dpKey=this.gameMode+"|"+(this.ball.inFlight?1:0)+"|"+distYd+"|"+Math.round(this.ball.distanceTraveled||0)+"|"+this.currentClubIdx+"|"+Math.round((this.weather?this.weather.distMult:1)*1000)+"|"+Math.round((this._getGoatDistMult?this._getGoatDistMult():1)*1000);
+    if(_dpKey===this._lastDistKey) return;
+    this._lastDistKey=_dpKey;
+    const _d=this._dom();
+    const distPanel=_d.distPanel;
+    const numEl=_d.distNum;
+    const unitEl=_d.distUnit;
+    const subEl=_d.distSub;
+    const brkEl=_d.distBreak;
+    const lblEl=_d.distLabel;
+    const clubBar=_d.clubBar;
     if(!distPanel||!numEl)return;
 
     // distPanel を全クラブ共通で常時表示（パターでも非表示にしない！）
@@ -5857,10 +5912,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         // パター時のclubBar表示
         if(clubBar){
           clubBar.style.display="block";
-          const num=document.getElementById("clubDistBarNum");
-          const carry=document.getElementById("clubDistCarry");
-          const run=document.getElementById("clubDistRun");
-          const lbl=document.getElementById("clubDistBarLabel");
+          const num=_d.clubNum;
+          const carry=_d.clubCarry;
+          const run=_d.clubRun;
+          const lbl=_d.clubLbl;
           if(num) num.textContent=`${distYd}yd`;
           if(carry) carry.textContent="Touch: Just";
           if(run) run.textContent=`${distFt}ft`;
@@ -5898,10 +5953,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
           if(brkEl) brkEl.textContent=`${club.name} 推定:${est}yd (誤差${diffStr})`;
           if(clubBar){
             clubBar.style.display="block";
-            const num=document.getElementById("clubDistBarNum");
-            const carry=document.getElementById("clubDistCarry");
-            const run=document.getElementById("clubDistRun");
-            const lbl=document.getElementById("clubDistBarLabel");
+            const num=_d.clubNum;
+            const carry=_d.clubCarry;
+            const run=_d.clubRun;
+            const lbl=_d.clubLbl;
             const estCarryA=Math.round(est*(1-(CLUBS[this.currentClubIdx]?.runFactor||0.02)));
             const estRunA=est-estCarryA;
             if(num) num.textContent=est+"yd";
@@ -5941,10 +5996,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
           if(subEl) subEl.textContent=club.name+" 推定:"+estTotal+"yd";
           if(brkEl) brkEl.textContent="C:"+estCarry+" + R:"+estRun+"yd";
           clubBar.style.display="block";
-          const num=document.getElementById("clubDistBarNum");
-          const carry=document.getElementById("clubDistCarry");
-          const run=document.getElementById("clubDistRun");
-          const lbl=document.getElementById("clubDistBarLabel");
+          const num=_d.clubNum;
+          const carry=_d.clubCarry;
+          const run=_d.clubRun;
+          const lbl=_d.clubLbl;
           if(num) num.textContent=estTotal+"yd";
           if(carry) carry.textContent="C:"+estCarry+"yd";
           if(run) run.textContent="R:"+estRun+"yd";
@@ -5958,7 +6013,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     }
 
     // 上部HUD距離更新（全クラブで残距離単位をydに統一し、パット時も一致させる！）
-    const hd=document.getElementById("hudDist");
+    const hd=_d.hudDist;
     if(hd){
       hd.textContent=distYd+"yd";
     }
@@ -5966,9 +6021,14 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
 
 
   _updateCompass(){
-    const cv=document.getElementById("compassCanvas");
+    const cv=this._dom().compassCanvas;
     if(!cv)return;
-    const ctx=cv.getContext("2d");
+    const ctx=this._dom().compassCtx;
+    /* v4.28 A-12: エイム角・ボール位置・モードが前回と同一なら再描画を省く（針・ピン方向の表示は同一のため）。 */
+    var _bx=this.ball?this.ball.position.x:0, _bz=this.ball?this.ball.position.z:0;
+    if(this._lastCompassKey && Math.abs(this.aimAngle-this._lastCompassAim)<0.01 && Math.abs(_bx-this._lastCompassX)<0.05 && Math.abs(_bz-this._lastCompassZ)<0.05 && this.gameMode===this._lastCompassMode) return;
+    this._lastCompassAim=this.aimAngle; this._lastCompassX=_bx; this._lastCompassZ=_bz; this._lastCompassMode=this.gameMode;
+    this._lastCompassKey=true;
     const W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
     const cx=W/2,cy=H*0.82,R=H*0.75;
 
@@ -6060,12 +6120,18 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
   }
 
   _updateAimAngleDisplay(){
-    const el=document.getElementById("aimDegPad");
+    const el=this._dom().aimDegPad;
     if(!el)return;
     const a=this.aimAngle;
+    /* v4.29 P-1: 入力（モード・角度・ボール位置・ピン位置）が前回と同一なら計算ごと省く（表示内容・タイミングは同一。NaN のときは毎回計算する安全側の作り）。 */
+    const _aadBx=this.ball?this.ball.position.x:NaN, _aadBz=this.ball?this.ball.position.z:NaN;
+    const _aadPx=this.pinPos?this.pinPos.x:NaN, _aadPz=this.pinPos?this.pinPos.z:NaN;
+    if(this._lastAimMode===this.gameMode&&this._lastAimAngle===a&&this._lastAimBx===_aadBx&&this._lastAimBz===_aadBz&&this._lastAimPx===_aadPx&&this._lastAimPz===_aadPz) return;
+    this._lastAimMode=this.gameMode; this._lastAimAngle=a; this._lastAimBx=_aadBx; this._lastAimBz=_aadBz; this._lastAimPx=_aadPx; this._lastAimPz=_aadPz;
+    var _aadTxt;
     if(this.gameMode==="putt"){
       const deg=Math.round(((a%360)+360)%360);
-      el.textContent=deg+"°";
+      _aadTxt=deg+"°";
     }else{
       let relDeg=a;
       if(this.ball&&this.pinPos){
@@ -6077,19 +6143,25 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         while(relDeg<-180)relDeg+=360;
       }
       const abs=Math.abs(relDeg).toFixed(0);
-      el.textContent=Math.abs(relDeg)<1.5?"PIN":(relDeg<0?`◀${abs}°`:`${abs}°▶`);
+      _aadTxt=Math.abs(relDeg)<1.5?"PIN":(relDeg<0?`◀${abs}°`:`${abs}°▶`);
     }
+    /* v4.28 A-9: 同じ文言の書き込みを省く（表示内容・タイミングは同一）。 */
+    if(_aadTxt!==this._lastAimTxt){ el.textContent=_aadTxt; this._lastAimTxt=_aadTxt; }
   }
 
   _updateFlightBar(){
-    const bar=document.getElementById("flightBar");
-    if(!this.ball||!this.ball.inFlight){bar.style.display="none";return;}
+    const bar=this._dom().flightBar;
+    if(!bar)return; /* v4.26 A-1: 要素が無い場合のガード（従来は bar.style で毎フレーム例外の恐れ） */
+    /* v4.28 A-9: 非飛行時の display="none" は初回だけにし、飛行中の文言も変わったときだけ書き込む。 */
+    if(!this.ball||!this.ball.inFlight){ if(this._flightBarShown!==false){ bar.style.display="none"; this._flightBarShown=false; } return; }
+    this._flightBarShown=true;
     const dist=Math.round(this.ball.distanceTraveled);
     const total=Math.round(this.ball.totalDistYd||0);
     const ph=this.ball.phase;
     const ht=Math.round(this.ball.maxHeight*10)/10;
     const windTag=this.weather&&this.weather.windStrength>3?` | 💨${this.weather.windStrength.toFixed(1)}m/s`:"";
-    bar.textContent=ph==="carry"?`✈️ キャリー ${dist}yd | 高さ${ht}yd | ~${total}yd${windTag}`:ph==="run"?`🌿 ラン ${dist}yd (着地面:${this.ball.landedSurface==="rough"?"ラフ":this.ball.landedSurface==="bunker"?"バンカー":"FW"})`:ph==="putt_roll"?`⛳ ロール ${dist}yd`:"";
+    var _fbTxt=ph==="carry"?`✈️ キャリー ${dist}yd | 高さ${ht}yd | ~${total}yd${windTag}`:ph==="run"?`🌿 ラン ${dist}yd (着地面:${this.ball.landedSurface==="rough"?"ラフ":this.ball.landedSurface==="bunker"?"バンカー":"FW"})`:ph==="putt_roll"?`⛳ ロール ${dist}yd`:"";
+    if(_fbTxt!==this._lastFlightTxt){ bar.textContent=_fbTxt; this._lastFlightTxt=_fbTxt; }
   }
 
   _updateHoleUI(hole){
@@ -6644,6 +6716,9 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
     if(this._loopRunning) return;
     this._loopRunning = true;
 
+    /* v4.28 A-5: ball.update/_stop に渡す関数をループ外で1回だけ作る（毎フレームのクロージャ生成をなくす。呼ぶ関数・引数は同一）。 */
+    const _gyFn=(x,z)=>this.getGY(x,z);
+    const _surfFn=(x,z)=>this.getSurf(x,z);
     let _ctxCheckFrame = 0; /* v4.10 A1: コンテキストロスト実体チェックの間引き用カウンタ（120フレームに1回） */
     const loop=()=>{
       requestAnimationFrame(loop);
@@ -6655,7 +6730,7 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
           const prev=this.aimAngle;this._processAimInput(dt);
           if(Math.abs(this.aimAngle-prev)>0.01){this._updateAimArrow();this._updateTrajDots();}
         }
-        this.ball.update(dt,(x,z)=>this.getGY(x,z),(x,z)=>this.getSurf(x,z));
+        this.ball.update(dt,_gyFn,_surfFn);
         if(this.fx) this.fx.update(dt);
         this._updateFlagPhysics(dt);
         this._traceUpdate(); // ★ 弾道トレース：毎フレーム座標を記録
@@ -6669,12 +6744,12 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
             const pSpd = Math.hypot(this.ball.puttVel.x, this.ball.puttVel.z);
             if(dPin < 0.78 && pSpd < 7.0){
               this.ball.position.set(this.pinPos.x, this.getGY(this.pinPos.x, this.pinPos.z) + 0.02, this.pinPos.z);
-              this.ball._stop((x,z)=>this.getGY(x,z),(x,z)=>this.getSurf(x,z));
+              this.ball._stop(_gyFn,_surfFn);
             }
           } else if(this.ball.phase === "run" && this.getSurf(bp.x, bp.z) === "green"){
             if(dPin < 0.68){
               this.ball.position.set(this.pinPos.x, this.getGY(this.pinPos.x, this.pinPos.z) + 0.02, this.pinPos.z);
-              this.ball._stop((x,z)=>this.getGY(x,z),(x,z)=>this.getSurf(x,z));
+              this.ball._stop(_gyFn,_surfFn);
             }
           }
         }
@@ -6694,9 +6769,8 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         this.updateCamera();this._updateRain(dt);
         // ボール地面影（飛行高さに応じてサイズ・透明度変化）
         if(this.ballShadowMesh&&this.ball){
+          /* v4.28 A-5: groundY/height は上で計算済みの値を流用する（ボール位置はこの間変わらない。カップイン時は _stop で inFlight=false になり影は非表示のため安全）。 */
           const bp=this.ball.position;
-          const groundY=this.getGY(bp.x,bp.z);
-          const height=Math.max(0,bp.y-groundY);
           if(this.ball.inFlight&&height>0.1){
             const scale=Math.max(0.3,1-height/this.ball.peakHeight*0.7);
             this.ballShadowMesh.position.set(bp.x,groundY+0.05,bp.z);
@@ -6710,21 +6784,26 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         // ボールトレイル更新
         if(this.trailMeshes&&this.ball&&this.ball.inFlight&&this.ball.phase==="carry"){
           // 現在位置を記録
+          /* v4.28 A-5: トレイル位置の Vector3 を使い回す（末尾の古いものを先頭へ回す。位置の値は同一）。forEach のクロージャも for 文にする。 */
           this.trailPositions=this.trailPositions||[];
-          this.trailPositions.unshift(this.ball.position.clone());
-          if(this.trailPositions.length>this.trailMeshes.length)this.trailPositions.pop();
+          var _tv;
+          if(this.trailPositions.length>=this.trailMeshes.length){ _tv=this.trailPositions.pop(); }
+          else { _tv=new THREE.Vector3(); }
+          _tv.copy(this.ball.position);
+          this.trailPositions.unshift(_tv);
           // トレイルメッシュを位置に配置
-          this.trailMeshes.forEach((tm,i)=>{
-            if(i<this.trailPositions.length){
-              tm.position.copy(this.trailPositions[i]);
-              const fade=(1-i/this.trailMeshes.length)*0.45;
+          for(var _ti=0;_ti<this.trailMeshes.length;_ti++){
+            var tm=this.trailMeshes[_ti];
+            if(_ti<this.trailPositions.length){
+              tm.position.copy(this.trailPositions[_ti]);
+              const fade=(1-_ti/this.trailMeshes.length)*0.45;
               tm.material.opacity=fade;
               tm.visible=fade>0.01;
             }else{tm.visible=false;}
-          });
+          }
         }else if(this.trailMeshes&&(!this.ball||!this.ball.inFlight)){
           // 飛行終了でトレイルをフェードアウト
-          this.trailMeshes.forEach(tm=>tm.visible=false);
+          for(var _tj=0;_tj<this.trailMeshes.length;_tj++)this.trailMeshes[_tj].visible=false;
           if(this.trailPositions)this.trailPositions.length=0;
         }
         if(this.flagMesh){
@@ -6736,7 +6815,10 @@ put('earL', J.head, true); put('earR', J.head, true); put('nose', J.head, true);
         }
         this._updateDistPanel();
         this._updateFlightBar();
-        this._drawMiniMap();this._updateCompass();this._updateAimAngleDisplay();
+        /* v4.28 A-3: ミニマップは約15Hzに間引く（ワールド側 P-W2 と同型。小さい地図では1更新のボール移動は数px未満のため見た目は変わらない）。コンパスと角度表示は内部で変化時のみ更新する。 */
+        var _nowMs=performance.now();
+        if(_nowMs-(this._lastMiniT||0)>=66){ this._lastMiniT=_nowMs; this._drawMiniMap(); }
+        this._updateCompass();this._updateAimAngleDisplay();
         /* v4.10 A1: 毎フレームの実体チェックを廃止。リスナーが立てるフラグを参照し、120フレームに1回だけ
            実体チェック（安全網）でフラグを更新する。ロスト中は描画せず復旧したら再開、の意味は従来どおり。 */
         var _ctxLost = false;
@@ -7294,27 +7376,37 @@ document.addEventListener('DOMContentLoaded', function () {
   /* 額縁HUD（トップ中継カード＋炎＆糸Canvas）リアルタイム更新 */
   var fCv = document.getElementById("gFlameCv"), fCtx = fCv.getContext("2d");
   var tCv = document.getElementById("gThreadCv"), tCtx = tCv.getContext("2d");
+  /* v4.26 C-6c: 75ms間隔の updateBattleHUD で毎回探していた10要素を初回にキャッシュする（fCv/tCv と同じ方式）。 */
+  var _hudEls = null;
+  function _hudEl(){ if(!_hudEls){ var g = function(id){ return document.getElementById(id); };
+    _hudEls = { gmcPlayerName: g("gmcPlayerName"), gmcPlayerSub: g("gmcPlayerSub"),
+      gmcOppName: g("gmcOppName"), gmcOppTitle: g("gmcOppTitle"), gmcOppPowFill: g("gmcOppPowFill"),
+      gmcStatus: g("gmcStatus"), gmcMarks: g("gmcMarks"),
+      gPowNum: g("gPowNum"), gPowRateTxt: g("gPowRateTxt"), gMenNum: g("gMenNum") }; }
+    return _hudEls; }
+
+  /* v4.28 A-6: 炎グラデーションはパワー帯とキャンバス幅が変わったときだけ作り直す（ワールド側 P-W1 と同型。炎の波形は従来どおり毎回描く）。テキスト類の前回キーもここで保持する。 */
+  var _flameGrad = null, _flameGradBand = -1, _flameGradW = 0;
+  var _hudLastKey = null;
 
   function updateBattleHUD(tNow){
+    var _he = _hudEl();
     if(B.mode === "goat"){ B.playerPower = 100; B.playerMental = 100; B.balls = 999; }
     var pRate = calcPowerRate(B.playerPower);
     var infBall = B.mode === "goat" || (B.gearStats.specials && B.gearStats.specials.yasakani_eternal);
 
-    document.getElementById("gmcPlayerName").textContent = B.playerName;
-    document.getElementById("gmcPlayerSub").textContent =
-      "飛距離率 " + Math.round(pRate) + "% ｜ 球 " + (infBall ? "∞" : B.balls) +
+    /* v4.28 A-6: テキスト類は前回と同一なら書き込みを省く（表示内容・更新タイミングは同一）。○●の数え上げは1回の走査にまとめる。 */
+    var _subTxt = "飛距離率 " + Math.round(pRate) + "% ｜ 球 " + (infBall ? "∞" : B.balls) +
       (B.poseidonLeft > 0 ? " ｜ 🔱×" + B.poseidonLeft : "");
+    var _oppTxt = (B.isPrime && String(B.oppName).indexOf("★") === -1 ? "★" : "") + B.oppName;
+    var _oppTitleTxt = B.oppTitle + " (敵炎 " + Math.round(B.oppPower) + "%)";
+    var _oppPowW = Math.max(4, B.oppPower) + "%";
 
-    document.getElementById("gmcOppName").textContent = (B.isPrime && String(B.oppName).indexOf("★") === -1 ? "★" : "") + B.oppName;
-    document.getElementById("gmcOppTitle").textContent = B.oppTitle + " (敵炎 " + Math.round(B.oppPower) + "%)";
-    document.getElementById("gmcOppPowFill").style.width = Math.max(4, B.oppPower) + "%";
-
-    var hw = B.holeMarks.filter(function(m){ return m === "○"; }).length;
-    var hl = B.holeMarks.filter(function(m){ return m === "●"; }).length;
+    var hw = 0, hl = 0;
+    for (var _mi = 0; _mi < B.holeMarks.length; _mi++) { if (B.holeMarks[_mi] === "○") hw++; else if (B.holeMarks[_mi] === "●") hl++; }
     var stTxt = B.inPlayoff ? "⚔ NEAR-PIN PLAYOFF" :
                 (B.holesCount === 1 ? "1H RIVAL MATCH" :
                 (hw > hl ? (hw - hl) + " UP (あなた優勢)" : (hl > hw ? (hl - hw) + " DOWN (相手優勢)" : "ALL SQUARE")));
-    document.getElementById("gmcStatus").textContent = stTxt;
 
     var curH = (typeof game !== "undefined" && game.currentCourse && game.currentCourse.holes[game.currentHoleIdx]);
     var hInfo = B.inPlayoff ? "Par3 ニアピン1打決戦（0.01yd計測）" :
@@ -7322,11 +7414,24 @@ document.addEventListener('DOMContentLoaded', function () {
        (curH ? "(Par" + curH.par + ")" : "") + " ｜ " +
        (B.holeMarks.length ? B.holeMarks.join(" ") : "開幕") +
        " ｜ 敵現在:" + B.ghost.strokes + "打" + (B.ghost.holed ? "(ホールアウト)" : ""));
-    document.getElementById("gmcMarks").textContent = hInfo;
+    var _powTxt = Math.round(B.playerPower) + "%";
+    var _rateTxt = "(出力" + Math.round(pRate) + "%)";
+    var _menTxt = Math.round(B.playerMental) + "%";
 
-    document.getElementById("gPowNum").textContent = Math.round(B.playerPower) + "%";
-    document.getElementById("gPowRateTxt").textContent = "(出力" + Math.round(pRate) + "%)";
-    document.getElementById("gMenNum").textContent = Math.round(B.playerMental) + "%";
+    var _hudKey = [B.playerName, _subTxt, _oppTxt, _oppTitleTxt, _oppPowW, stTxt, hInfo, _powTxt, _rateTxt, _menTxt].join("|");
+    if (_hudKey !== _hudLastKey) {
+      _hudLastKey = _hudKey;
+      _he.gmcPlayerName.textContent = B.playerName;
+      _he.gmcPlayerSub.textContent = _subTxt;
+      _he.gmcOppName.textContent = _oppTxt;
+      _he.gmcOppTitle.textContent = _oppTitleTxt;
+      _he.gmcOppPowFill.style.width = _oppPowW;
+      _he.gmcStatus.textContent = stTxt;
+      _he.gmcMarks.textContent = hInfo;
+      _he.gPowNum.textContent = _powTxt;
+      _he.gPowRateTxt.textContent = _rateTxt;
+      _he.gMenNum.textContent = _menTxt;
+    }
 
     /* 炎のパワーCanvas描画 */
     var t = (tNow || performance.now()) * 0.001;
@@ -7334,10 +7439,15 @@ document.addEventListener('DOMContentLoaded', function () {
     fCtx.clearRect(0, 0, W, H);
     var fw = (B.playerPower / 100) * W;
     var turb = B.playerPower >= 75 ? 1.5 : (B.playerPower >= 40 ? 3.2 : 5.8);
-    var grd = fCtx.createLinearGradient(0, 0, W, 0);
-    if(B.playerPower >= 75){ grd.addColorStop(0,"#1e90ff"); grd.addColorStop(0.6,"#5ce1e6"); grd.addColorStop(1,"#ffe57f"); }
-    else if(B.playerPower >= 40){ grd.addColorStop(0,"#ff6b35"); grd.addColorStop(0.6,"#ffb142"); grd.addColorStop(1,"#fff275"); }
-    else { grd.addColorStop(0,"#8b0000"); grd.addColorStop(0.5,"#ff2e4c"); grd.addColorStop(1,"#ff9f43"); }
+    var _band = B.playerPower >= 75 ? 2 : (B.playerPower >= 40 ? 1 : 0);
+    if (_flameGradBand !== _band || !_flameGrad || _flameGradW !== W) {
+      _flameGrad = fCtx.createLinearGradient(0, 0, W, 0);
+      if(_band === 2){ _flameGrad.addColorStop(0,"#1e90ff"); _flameGrad.addColorStop(0.6,"#5ce1e6"); _flameGrad.addColorStop(1,"#ffe57f"); }
+      else if(_band === 1){ _flameGrad.addColorStop(0,"#ff6b35"); _flameGrad.addColorStop(0.6,"#ffb142"); _flameGrad.addColorStop(1,"#fff275"); }
+      else { _flameGrad.addColorStop(0,"#8b0000"); _flameGrad.addColorStop(0.5,"#ff2e4c"); _flameGrad.addColorStop(1,"#ff9f43"); }
+      _flameGradBand = _band; _flameGradW = W;
+    }
+    var grd = _flameGrad;
     fCtx.fillStyle = grd;
     fCtx.beginPath(); fCtx.moveTo(0, H);
     for(var x=0; x<=fw; x+=6){
@@ -7714,9 +7824,9 @@ document.addEventListener('DOMContentLoaded', function () {
     game._drawMiniMap = function(){
       origDrawMini();
       if(B.inPlayoff) return;
-      var cv = document.getElementById("miniMapCanvas");
+      var cv = game._dom().miniMapCanvas;
       if(!cv || !B.ghost) return;
-      var ctx = cv.getContext("2d");
+      var ctx = game._dom().miniMapCtx;
       var W = cv.width, H = cv.height;
       var cx = W * 0.5, pinY = 14, teeY = H - 12;
       var sX = W / 190;
@@ -8109,13 +8219,15 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(startPip, 1000);
 
     var pipCam = null;
+    /* v4.29 P-3: pipLoop の一時ベクトル（表示中の毎フレーム生成をやめる。v4.28 A-1 と同型）。 */
+    var _pipTmp1 = new THREE.Vector3(), _pipTmp2 = new THREE.Vector3(), _pipTmp3 = new THREE.Vector3();
     function pipLoop(){
-      requestAnimationFrame(pipLoop);
+      /* v4.28 A-10: 期限（pipUntil）を過ぎたら次のフレームを予約せず終了する（従来は期限後も空回りの rAF が常駐していた。PiP の表示期間は同一）。 */
       if(Date.now() > pipUntil){
         if(pipLabel){ pipLabel.remove(); pipLabel = null; }
         return;
       }
-      if(!g.playerMesh || !g.pinPos) return;
+      if(!g.playerMesh || !g.pinPos){ requestAnimationFrame(pipLoop); return; }
       var W = window.innerWidth, H = window.innerHeight;
       var S = W < 820 ? 148 : 272;
       var x = W - S - 12, yB = Math.round(H * 0.30);
@@ -8125,9 +8237,9 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if(!pipCam) pipCam = new THREE.PerspectiveCamera(38, 1, 0.1, 600);
       var pp = g.playerMesh.position;
-      var toPin = new THREE.Vector3(g.pinPos.x - pp.x, 0, g.pinPos.z - pp.z).normalize();
-      var side = new THREE.Vector3(-toPin.z, 0, toPin.x);
-      var camPos = pp.clone().add(side.multiplyScalar(5.2)).add(toPin.clone().multiplyScalar(-1.6));
+      var toPin = _pipTmp1.set(g.pinPos.x - pp.x, 0, g.pinPos.z - pp.z).normalize();
+      var side = _pipTmp2.set(-toPin.z, 0, toPin.x);
+      var camPos = _pipTmp3.copy(pp).addScaledVector(side, 5.2).addScaledVector(toPin, -1.6);
       camPos.y = pp.y + 2.1;
       pipCam.position.copy(camPos);
       pipCam.lookAt(pp.x, pp.y + 1.35, pp.z);
@@ -8147,6 +8259,7 @@ document.addEventListener('DOMContentLoaded', function () {
         r.setViewport(0, 0, W, H);
         r.autoClear = prevAuto;
       } catch(e){}
+      requestAnimationFrame(pipLoop);
     }
     requestAnimationFrame(pipLoop);
 
