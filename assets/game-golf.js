@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.29');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.30');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -2517,6 +2517,7 @@ class GolfGame{
     /* v4.6: 前ホールの全オブジェクトを外す際に geometry/material も明示解放する。
        従来は remove のみで、地形・林(InstancedMesh)・空・HQ差替マテリアルがホールを跨いで
        GPU/ヒープに残留していた（3ホール制の最終戦で最も蓄積する）。テクスチャは共有資産のため解放しない。 */
+    this._dressHoleKey=null; /* v4.30 A-4: 同一ホール再読み込み時に _hqCourseDress が早期 return して林・リボン等のドレス分が欠ける不具合を直す（シーンを空にするのでキーも空にし、後段の _hqCourseDress 呼び出しで再生成させる。呼び出しは loadHole 内 1回のみのため二重生成なし） */
     while(this.scene.children.length>0){
       const _old=this.scene.children[0];
       this.scene.remove(_old);
@@ -4090,7 +4091,7 @@ const bCntGreen=Math.min(bunkerCount,5);
     const crownR=(type==="pine"?2.5:3.1)*sm;
     for(let k=0;k<nCl;k++){
       const cr=crownR*(1.0-k*0.16)*(0.85+rnd()*0.3);
-      const cm=new THREE.MeshLambertMaterial({color:greens[Math.floor(rnd()*greens.length)],flatShading:true}); /* v4.25 D-1: 樹冠の面の陰影を出す（置換後のStandardにも _hqUpgradeGround で付ける） */
+      const cm=new THREE.MeshStandardMaterial({color:greens[Math.floor(rnd()*greens.length)],roughness:0.94,flatShading:true,envMapIntensity:0.35}); /* v4.30 D-6: 樹冠を生成時に直接 Standard 化する（HQ 成功時の roughness 0.94・envMapIntensity 0.35・flatShading と同一。葉テクスチャは残す。_hqUpgradeGround は Lambert 以外を無視するため、読み込みタイミングで Lambert 残留／Standard に分かれる非決定性が解消される。色・形・配置・本数は不変） */
       if(leafTex){ cm.map=leafTex; }
       const blob=new THREE.Mesh(new THREE.IcosahedronGeometry(cr,1),cm);
       blob.position.set(

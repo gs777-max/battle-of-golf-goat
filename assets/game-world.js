@@ -31,7 +31,7 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.29');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.30');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -3709,10 +3709,10 @@ scene.remove(m.mesh);
             var sandBlind = p.fromBunker || isInBunker(p.x, p.z);
             spawnPillarFX(p.x, p.z, sandBlind ? 0xf6d365 : 0xffffff, 3.2 + p.lv * 0.8, 22, 0.75);
             spawnTigerClaws(p.x, p.z, sandBlind);
-            var aoeR = (sandBlind ? 10.5 : 5.8) + p.lv * 1.2;
+            var aoeR = (sandBlind ? 10.5 : 5.8) + p.lv * 1.2; var aoeR2 = aoeR * aoeR; /* v4.30 P-8: AoE 判定を二乗比較化する（aoeR は常に正で実距離は判定以外に使われないため <= のまま同一。aoeR2 はループ外で 1回だけ計算） */
             for (var _aoei = 0; _aoei < MOBS.length; _aoei++) {
               var m = MOBS[_aoei];
-              if (!m.purified && Math.hypot(m.x - p.x, m.z - p.z) <= aoeR) {
+              if (!m.purified && (m.x - p.x) * (m.x - p.x) + (m.z - p.z) * (m.z - p.z) <= aoeR2) {
                 damageMob(m, p.dmg, { isCrit: p.isCrit, stunSec: sandBlind ? 5.0 : 1.5, blindSec: sandBlind ? 5.0 : 0 });
               }
             } /* v4.29 P-4: forEach → for（処理内容・順序は同一） */
