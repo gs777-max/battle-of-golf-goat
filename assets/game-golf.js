@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.30');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.31');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -7268,6 +7268,8 @@ document.addEventListener('DOMContentLoaded', function () {
     armedSpecial: null,
     holeMarks: [],       // '○' | '●' | '△'
     oppHoleStrokes: [],  // 各ホールの敵ゴースト最終打数
+    freeRound: null,     // v4.31: フリーラウンド情報（ctx.freeRound。通常対戦では null のまま）
+    freePutts: [],       // v4.31: フリーラウンドのホール別パット数
     ghost: { x:0, z:0, strokes:0, holed:false, disturb:false },
     inPlayoff: false,
     playoffPar3Hole: null,
@@ -7415,6 +7417,22 @@ document.addEventListener('DOMContentLoaded', function () {
        (curH ? "(Par" + curH.par + ")" : "") + " ｜ " +
        (B.holeMarks.length ? B.holeMarks.join(" ") : "開幕") +
        " ｜ 敵現在:" + B.ghost.strokes + "打" + (B.ghost.holed ? "(ホールアウト)" : ""));
+    /* v4.31: フリーラウンド時は相手カードの表示文字列だけを差し替える（寸法・更新タイミングは不変） */
+    if(B.freeRound){
+      _oppTxt = "⛳ フリーラウンド";
+      _oppTitleTxt = (B.freeRound.courseName || "") + " " + (B.freeRound.segLabel || "");
+      stTxt = "FREE ROUND";
+      var _ft = 0, _fp = 0;
+      if(typeof game !== "undefined" && game && game.currentCourse && game.scores){
+        for(var _fi = 0; _fi < game.currentHoleIdx && _fi < game.scores.length; _fi++){
+          if(typeof game.scores[_fi] === "number"){ _ft += game.scores[_fi]; _fp += (game.currentCourse.holes[_fi] ? game.currentCourse.holes[_fi].par : 0); }
+        }
+      }
+      var _frel = _ft - _fp;
+      hInfo = "H" + ((game ? game.currentHoleIdx : 0) + 1) + "/" + B.holesCount +
+        (curH ? "(Par" + curH.par + ")" : "") +
+        " ｜ 累計 " + _ft + "打（" + (_frel === 0 ? "±0" : (_frel > 0 ? "+" + _frel : "" + _frel)) + "）";
+    }
     var _powTxt = Math.round(B.playerPower) + "%";
     var _rateTxt = "(出力" + Math.round(pRate) + "%)";
     var _menTxt = Math.round(B.playerMental) + "%";
@@ -7481,6 +7499,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function stepEnemyGhostOneShot(){
+    if(B.freeRound) return; /* v4.31: フリーラウンドに敵ゴーストはいない */
     if(!game || !game.pinPos || B.ghost.holed || B.inPlayoff) return;
     var pin = game.pinPos;
     var dx = pin.x - B.ghost.x, dz = pin.z - B.ghost.z;
@@ -7549,6 +7568,7 @@ document.addEventListener('DOMContentLoaded', function () {
           scores: game.scores.slice(),
           ballPos: { x:game.ball.position.x, y:game.ball.position.y, z:game.ball.position.z },
           holeMarks: B.holeMarks.slice(),
+          freePutts: B.freePutts ? B.freePutts.slice() : [], /* v4.31: フリーラウンドのパット数をレジュームでも復元する（追加フィールド） */
           oppHoleStrokes: B.oppHoleStrokes.slice(),
           oppPower: B.oppPower,
           ghost: Object.assign({}, B.ghost),
@@ -7824,7 +7844,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var origDrawMini = game._drawMiniMap.bind(game);
     game._drawMiniMap = function(){
       origDrawMini();
-      if(B.inPlayoff) return;
+      if(B.inPlayoff || B.freeRound) return;
       var cv = game._dom().miniMapCanvas;
       if(!cv || !B.ghost) return;
       var ctx = game._dom().miniMapCtx;
@@ -7850,6 +7870,18 @@ document.addEventListener('DOMContentLoaded', function () {
     var origHoleComplete = game._holeComplete.bind(game);
     game._holeComplete = function(){
       var idx = this.currentHoleIdx;
+      /* v4.31: フリーラウンドは勝敗マークを付けず、打数とパット数だけを記録する */
+      if(B.freeRound){
+        B.freePutts[idx] = this._holePutts || 0;
+        origHoleComplete();
+        var fh = this.currentCourse.holes[idx];
+        var tot = 0, tpar = 0;
+        for(var fi = 0; fi <= idx; fi++){ tot += (this.scores[fi] || 0); tpar += (this.currentCourse.holes[fi] ? this.currentCourse.holes[fi].par : 0); }
+        var frel = tot - tpar;
+        showCaption("ホール" + (idx + 1) + "終了：あなた " + this.strokes + "打（Par " + (fh ? fh.par : "?") + "）｜ 累計 " + tot + "打（" + (frel === 0 ? "±0" : (frel > 0 ? "+" + frel : "" + frel)) + "）");
+        syncShotProgress();
+        return;
+      }
       var oppStr = finishGhostIfRemaining();
       B.oppHoleStrokes[idx] = oppStr;
       var pStr = this.strokes;
@@ -7865,6 +7897,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var origNextHole = game.nextHole.bind(game);
     game.nextHole = function(){
       if(B.sentResult || B.inPlayoff) return;
+      /* v4.31: フリーラウンドは規定ホールを回り切ったら結果へ（勝敗・コールド判定なし） */
+      if(B.freeRound){
+        var played = 0;
+        for(var pi = 0; pi < game.scores.length; pi++){ if(typeof game.scores[pi] === "number" && game.scores[pi] > 0) played++; }
+        if(played >= B.holesCount){ presentFreeFinal(); return; }
+        origNextHole();
+        syncShotProgress();
+        return;
+      }
       var hw = B.holeMarks.filter(function(m){ return m === "○"; }).length;
       var hl = B.holeMarks.filter(function(m){ return m === "●"; }).length;
       var holesPlayed = B.holeMarks.length;
@@ -7891,6 +7932,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* 従来のトーナメント結果画面が直接呼ばれた場合もGOAT決着へ安全接続 */
     game._onRoundFinished = function(){
+      if(B.freeRound){ presentFreeFinal(); return; }
       evaluateRegulationEnd();
     };
   }
@@ -7970,6 +8012,55 @@ document.addEventListener('DOMContentLoaded', function () {
     showCaption("⚔ オールスクエア！ このティーショット1打でピンに最も近づけた者が勝者となる！");
   }
 
+  /* v4.31: フリーラウンドの最終結果（勝敗なし。スコア集計を親へ送る） */
+  function presentFreeFinal(){
+    if(B.sentResult) return;
+    B.sentResult = true;
+    var fr = B.freeRound || {};
+    var holes = game.currentCourse.holes;
+    var scores = [], putts = [], pars = [], tStr = 0, tPar = 0, tPutts = 0;
+    for(var i = 0; i < holes.length; i++){
+      var sc = game.scores[i] || 0;
+      var pt = (typeof B.freePutts[i] === "number") ? B.freePutts[i] : ((game._stats && game._stats.putts && game._stats.putts[i]) || 0);
+      scores.push(sc); putts.push(pt); pars.push(holes[i].par || 0);
+      tStr += sc; tPar += (holes[i].par || 0); tPutts += pt;
+    }
+    var rel = tStr - tPar;
+    var relTxt = rel === 0 ? "±0" : (rel > 0 ? "+" + rel : "" + rel);
+    var ov = document.getElementById("goatFinishOverlay");
+    document.getElementById("gfoTag").textContent = "FREE ROUND RESULT";
+    document.getElementById("gfoTitle").textContent = "🏆 ラウンド終了 ― " + (fr.courseName || game.currentCourse.name) + " " + (fr.segLabel || "");
+    document.getElementById("gfoTitle").style.color = "#ffe680";
+    document.getElementById("gfoBody").innerHTML =
+      "合計スコア：<b>" + tStr + "打（" + relTxt + "）</b> ｜ パット：<b>" + tPutts + "</b><br><br>" +
+      "記録はタイトル画面でコース別ベスト10に自動登録されます。";
+    ov.style.display = "flex";
+    var payload = {
+      type: "goat:golfResult",
+      outcome: "free",
+      detail: "フリーラウンド " + (fr.segLabel || "") + " " + tStr + "打（" + relTxt + "）",
+      isPlayoff: false,
+      powerLeft: B.playerPower,
+      mentalLeft: B.playerMental,
+      ballsLeft: B.balls,
+      oppName: "フリーラウンド",
+      holesCount: B.holesCount,
+      totalStrokes: tStr,
+      totalPar: tPar,
+      relScore: rel,
+      scores: scores,
+      putts: putts,
+      pars: pars,
+      freeRound: fr
+    };
+    var btn = document.getElementById("gfoBtn");
+    btn.textContent = "結果を見る →";
+    btn.onclick = function(){ parent.postMessage(payload, "*"); };
+    if(q.get("testresult") === "1"){
+      setTimeout(function(){ parent.postMessage(payload, "*"); }, 400);
+    }
+  }
+
   function presentFinalOverlay(outcome, detail, wasPlayoff){
     if(B.sentResult) return;
     B.sentResult = true;
@@ -8044,6 +8135,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       B.courseId = ctx.course || B.courseId;
       B.holesCount = ctx.holes || B.holesCount;
+      if(ctx.freeRound) B.freeRound = ctx.freeRound; /* v4.31 */
     }
 
     if(B.mode === "goat" || (B.gearStats.specials && B.gearStats.specials.poseidon_water)){
@@ -8074,6 +8166,12 @@ document.addEventListener('DOMContentLoaded', function () {
     B.playoffPar3Hole = p3;
 
     var useHoles = (B.holesCount >= 3) ? [p3, p4, p5] : [p4];
+    /* v4.31: フリーラウンドは黄金構成ではなく、実コースのホールを連続でそのまま使う */
+    if(B.freeRound){
+      var _fs = B.freeRound.startIdx || 0;
+      useHoles = full.holes.slice(_fs, _fs + (B.freeRound.count || useHoles.length));
+      B.holesCount = useHoles.length;
+    }
     var courseArg = Object.assign({}, full, { holes: useHoles });
     var weatherType = (ctx && ctx.weather) ? ctx.weather : "sunny";
     if(weatherType === "storm") weatherType = "strongWind";
@@ -8104,6 +8202,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if(typeof pr.oppPower === "number") B.oppPower = pr.oppPower;
       if(typeof pr.poseidonLeft === "number") B.poseidonLeft = pr.poseidonLeft;
       B.yasakaniShotUsed = !!pr.yasakaniShotUsed;
+      if(B.freeRound && pr.freePutts) B.freePutts = pr.freePutts.slice(); /* v4.31 */
       if(typeof pr.holeIdx === "number" && pr.holeIdx < useHoles.length){
         game.currentHoleIdx = pr.holeIdx;
         game.scores = pr.scores || game.scores;
@@ -8123,8 +8222,25 @@ document.addEventListener('DOMContentLoaded', function () {
     renderSpecialMenu();
     updateBattleHUD(performance.now());
 
+    /* v4.31: フリーラウンド時のみ「中断して保存」ボタンを表示する（通常対戦では非表示のまま） */
+    if(B.freeRound){
+      var ab = document.getElementById("freeAbortBtn");
+      if(ab){
+        ab.style.display = "block";
+        ab.onclick = function(){
+          parent.postMessage({ type:"goat:freeAbort", ballsLeft:B.balls, powerLeft:B.playerPower, mentalLeft:B.playerMental }, "*");
+        };
+      }
+    }
+
     if(q.get("testresult") === "1"){
       setTimeout(function(){
+        if(B.freeRound){
+          game.scores = useHoles.map(function(h){ return h.par; });
+          B.freePutts = useHoles.map(function(){ return 2; });
+          presentFreeFinal();
+          return;
+        }
         B.holeMarks = B.holesCount >= 3 ? ["○","○"] : ["○"];
         game.scores = useHoles.map(function(h){ return h.par - 1; });
         B.oppHoleStrokes = useHoles.map(function(h){ return h.par; });
