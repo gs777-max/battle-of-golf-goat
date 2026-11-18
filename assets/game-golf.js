@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.31');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.33');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -7280,6 +7280,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function loadStoredCtx(){
     try {
+      /* v4.33: フリーラウンドの途中経過は専用キーに分離したため、URL の kind=free で読み分け。
+         旧版で本編キー側に保存されたフリー分があれば、そちらも拾う（移行期の保険） */
+      if(q.get("kind") === "free"){
+        var rf = localStorage.getItem("goat_active_free_v1");
+        if(rf) return JSON.parse(rf);
+        var rb = localStorage.getItem("goat_active_battle_v2");
+        if(rb){ var pb = JSON.parse(rb); if(pb && pb.freeRound) return pb; }
+        return null;
+      }
       var raw = localStorage.getItem("goat_active_battle_v2");
       if(raw) return JSON.parse(raw);
     } catch(e){}

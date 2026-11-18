@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.31）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.33）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
 <!-- v4.1: セーブ破損の自動復旧（本体スクリプトより前に実行し、壊れた保存をバックアップから戻す） -->
 <script>
 (function(){
-  var KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2"];
+  var KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2","goat_active_free_v1"];
   for(var i=0;i<KEYS.length;i++){
     var k = KEYS[i];
     try {
@@ -318,6 +318,15 @@
   /* v4.16: 設定ステップ画面（主人公選択の後）にも同じ安全な中央寄せを適用する */
   #settingScr { align-items: flex-start; }
   #settingScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+  /* v4.32: フリーラウンド系3画面にも同じ安全な中央寄せを適用する。
+     未適用の間は背の高いパネル先頭がスクロール到達不能領域に押し出され、
+     実機で戸田・宍戸ヒルズ西・PGM石岡（花葉より上のコース）が選べなかった。 */
+  #freeScr { align-items: flex-start; }
+  #freeScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+  #bestScr { align-items: flex-start; }
+  #bestScr .hero-panel { margin-top: auto; margin-bottom: auto; }
+  #freeResultScr { align-items: flex-start; }
+  #freeResultScr .hero-panel { margin-top: auto; margin-bottom: auto; }
 
   /* ===== v4.16 設定ステップ: カスタムプルダウン（難易度／飛距離クラス） ===== */
   .setting-card {
@@ -480,7 +489,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.31"></script>
+<script src="assets/diag-overlay.js?v=4.33"></script>
 </head>
 <body>
 
@@ -562,7 +571,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.31【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.33【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -624,7 +633,7 @@
       <div id="freeStartRow" style="display:none;margin-top:10px;">
         <span style="font-size:12.5px;font-weight:900;color:var(--cyan);">開始ホール：</span>
         <span class="free-chips" id="freeStartChips" style="display:inline-flex;vertical-align:middle"></span>
-        <span style="font-size:11.5px;color:var(--text-sub)">（選んだホールから連続3ホール）</span>
+        <span style="font-size:11.5px;color:var(--text-sub)">（選んだホールから連続で回ります）</span>
       </div>
     </div>
     <div style="text-align:left;margin-top:20px;">
@@ -1726,6 +1735,7 @@ function saveSlot(slotIdx, label){
 
 function saveResume(){
   if(!S) return;
+  splitFreeSlot();
   try {
     localStorage.setItem(resumeKey(S.mode), JSON.stringify(S));
   } catch(e){}
@@ -2473,6 +2483,7 @@ function launchGolfIframe(tgt, overrideCharId){
   };
 
   S.activeBattle = battleCtx;
+  window.__curGolfKind = "rpg"; // v4.33: 実行中ゴルフの種別（フリーと本編で保存枠を分けるため）
   S.nextBuff = null; // バフは今回の対戦で消費
   try { localStorage.setItem("goat_active_battle_v2", JSON.stringify(battleCtx)); } catch(e){}
   saveResume();
@@ -2777,9 +2788,13 @@ function finalizeEnding(key, titleName, epilogueNarr){
 /* ゴルフ対戦（golf.html）決着受信ハンドラ */
 function handleGolfResult(res){
   if(!S || !res) return;
-  var ctx = S.activeBattle;
-  S.activeBattle = null;
-  try { localStorage.removeItem("goat_active_battle_v2"); } catch(e){}
+  splitFreeSlot();
+  /* v4.33: 結果は種別ごとの保存枠から受け取る（フリーの結果で本編対戦の途中データを消さない） */
+  var isFree = (res.outcome === "free") || (window.__curGolfKind === "free") || !!res.freeRound;
+  var ctx = isFree ? S.activeFree : S.activeBattle;
+  if(isFree){ S.activeFree = null; try { localStorage.removeItem("goat_active_free_v1"); } catch(e){} }
+  else { S.activeBattle = null; try { localStorage.removeItem("goat_active_battle_v2"); } catch(e){} }
+  window.__curGolfKind = null;
 
   /* v4.31: フリーラウンドの結果は勝敗・報酬処理へ流さず、専用処理（ベスト10登録＋結果画面）へ。
      本編へ戻すのはボール残数だけ（パワー・メンタル・TP・賞金は不変）。 */
@@ -3711,10 +3726,28 @@ function renderSaveSlotsInto(container){
   });
 }
 
+/* v4.33: フリーラウンドの途中経過は本編対戦と別枠（S.activeFree＋専用キー goat_active_free_v1）で保持する。
+   v4.32 以前は本編対戦と同じ S.activeBattle／goat_active_battle_v2 を共用していたため、本編対戦の
+   途中はフリーラウンドを開始できず、開始すると本編の再開データと競合した。旧セーブでフリー分が
+   本編枠に入っている場合は、ここでフリー枠へ自動移行する（記録・途中経過は失われない）。 */
+function splitFreeSlot(){
+  if(!S) return;
+  if(S.activeBattle && S.activeBattle.freeRound){
+    if(!S.activeFree) S.activeFree = S.activeBattle;
+    S.activeBattle = null;
+    try { localStorage.removeItem("goat_active_battle_v2"); } catch(e){}
+  }
+  if(S.activeFree){
+    try { localStorage.setItem("goat_active_free_v1", JSON.stringify(S.activeFree)); } catch(e){}
+  }
+}
+
 function resumeFromLoadedState(){
   if(!S) return;
+  splitFreeSlot();
   /* もしゴルフ対戦の途中（1打単位レジューム）で中断していた場合は、そのホール・打数から即時復帰！ */
   if(S.activeBattle && S.activeBattle.course){
+    window.__curGolfKind = "rpg";
     try { localStorage.setItem("goat_active_battle_v2", JSON.stringify(S.activeBattle)); } catch(e){}
     document.getElementById("titleScr").style.display = "none";
     document.getElementById("charScr").style.display = "none";
@@ -3737,6 +3770,8 @@ window.__v49BattleLaunch = true;
 narrate("中断されていた真剣勝負のラウンドを、その一打から再開する。", "male");
     return;
   }
+  /* v4.33: 本編対戦が無くフリーラウンドだけ中断中の場合は、フリーをその一打から再開する */
+  if(S.activeFree && S.activeFree.course && window.__freeResume){ window.__freeResume(); return; }
   enterWorld(true);
 }
 
@@ -4176,22 +4211,27 @@ var wf49 = document.getElementById("worldFrame");
 if(wf49 && wf49.src && wf49.src.indexOf("world.html")!== -1){ try{ wf49.src = "about:blank";}catch(e){}}
 }
 var gf = document.getElementById("golfFrame");
-if(gf && gf.contentWindow && S.activeBattle){
-gf.contentWindow.postMessage({ type:"goat:battleContext", ctx:S.activeBattle }, "*");
+var helloCtx = (window.__curGolfKind === "free") ? S.activeFree : S.activeBattle;
+if(gf && gf.contentWindow && helloCtx){
+gf.contentWindow.postMessage({ type:"goat:battleContext", ctx:helloCtx }, "*");
 }
 return;
 }
 
   /* golf.html 1打確定ごとの進行同期（リセットやり直し防止＆1打単位レジューム） */
   if(d.type === "goat:shotProgress"){
-    if(S.activeBattle){
-      S.activeBattle.progress = d.progress;
+    /* v4.33: 進行同期は種別ごとの保存枠へ。フリー側はボール残数だけ本編と共有し、
+       パワー・メンタルはフリー枠の中だけに留める（本編ステータスへ書き戻さない） */
+    var isFreeShot = (window.__curGolfKind === "free");
+    var shotCtx = isFreeShot ? S.activeFree : S.activeBattle;
+    if(shotCtx){
+      shotCtx.progress = d.progress;
       if(S.mode !== "goat"){
-        if(typeof d.power === "number") S.power = S.activeBattle.power = d.power;
-        if(typeof d.mental === "number") S.mental = S.activeBattle.mental = d.mental;
-        if(typeof d.balls === "number") S.balls = S.activeBattle.balls = d.balls;
+        if(typeof d.power === "number"){ shotCtx.power = d.power; if(!isFreeShot) S.power = d.power; }
+        if(typeof d.mental === "number"){ shotCtx.mental = d.mental; if(!isFreeShot) S.mental = d.mental; }
+        if(typeof d.balls === "number"){ shotCtx.balls = d.balls; S.balls = d.balls; }
       }
-      try { localStorage.setItem("goat_active_battle_v2", JSON.stringify(S.activeBattle)); } catch(e){}
+      try { localStorage.setItem(isFreeShot ? "goat_active_free_v1" : "goat_active_battle_v2", JSON.stringify(shotCtx)); } catch(e){}
       updateTopbar();
       saveResume();
     }
@@ -4366,7 +4406,7 @@ function renderCharPortraitSVG(c){
    ========================================================================= */
 (function(){
   "use strict";
-  var SAVE_KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2"];
+  var SAVE_KEYS = ["goat_save_slots_v3","goat_global_meta_v3","goat_resume_normal_v3","goat_resume_goat_v3","goat_active_battle_v2","goat_active_free_v1"];
   var REC_KEY = "goat_records_v41";
 
   /* ---- 項目16: 保存のたびに控え（バックアップ）を自動で残す ---- */
@@ -4573,6 +4613,9 @@ table.free-tbl tr.me td{background:rgba(255,200,60,.16);color:#fff;font-weight:9
    - 本編セーブ（キー4種＋goat_active_battle_v2）の形式は不変更。ベスト10は新規キーに分離。
    - 起動は launchGolfIframe と同型の専用経路。battleCtx への freeRound 追加のみで、
      postMessage プロトコル "4.2" は不変更。
+   v4.33: 途中経過は本編対戦と別枠（S.activeFree＋専用キー goat_active_free_v1）に分離。
+     本編対戦の途中でも開始でき、本編の再開データには触れない。旧セーブで本編枠に
+     入っているフリー分は splitFreeSlot() がフリー枠へ自動移行する。
    ========================================================================= */
 (function(){
 "use strict";
@@ -4587,23 +4630,51 @@ var FREE_COURSES = [
   { id:"tpcsawgrass", name:"TPC Sawgrass",          flag:"🇺🇸", desc:"Players Championship Par72", best:"" },
   { id:"standrews",   name:"St Andrews Old Course", flag:"🏴", desc:"ゴルフ発祥の地 Par72", best:"" }
 ];
-var FREE = { course:"toda", seg:"9out", start:1, diff:"normal", dist:"dracon", lastCfg:null, returnTo:"free" };
-var BESTV = { course:"toda", seg:"9out", start:1 };
+var FREE = { course:"toda", seg:"9", start:1, diff:"normal", dist:"dracon", lastCfg:null, returnTo:"free" };
+var BESTV = { course:"toda", seg:"9", start:1 };
 
 function $(id){ return document.getElementById(id); }
 function courseById(id){ for(var i=0;i<FREE_COURSES.length;i++) if(FREE_COURSES[i].id===id) return FREE_COURSES[i]; return FREE_COURSES[0]; }
 function segLabel(seg, start){
   if(seg === "18") return "18H";
-  if(seg === "9out") return "9H ― OUT（1〜9番）";
-  if(seg === "9in") return "9H ― IN（10〜18番）";
+  if(seg === "9out") return "9H（1〜9番）";
+  if(seg === "9in") return "9H（10〜18番）";
+  if(seg === "9") return "9H（" + start + "〜" + (start + 8) + "番）";
   return "3H（" + start + "〜" + (start + 2) + "番）";
 }
-function recordKey(course, seg, start){ return course + "|" + (seg === "3" ? ("3@" + start) : seg); }
+function recordKey(course, seg, start){
+  if(seg === "9out") return course + "|9@1";
+  if(seg === "9in") return course + "|9@10";
+  if(seg === "18") return course + "|18";
+  return course + "|" + seg + "@" + start;
+}
 function segCount(seg){ return seg === "18" ? 18 : (seg === "3" ? 3 : 9); }
-function segStartIdx(seg, start){ return seg === "9in" ? 9 : (seg === "3" ? (start - 1) : 0); }
+function segStartIdx(seg, start){ return seg === "9in" ? 9 : (seg === "9out" ? 0 : (seg === "18" ? 0 : (start - 1))); }
+function startMax(seg){ return seg === "3" ? 16 : 10; }
+function startItemsFor(seg){
+  var max = startMax(seg), items = [];
+  for(var n = 1; n <= max; n++) items.push({ id:"" + n, label:n + "番〜" });
+  return items;
+}
 
 function loadBest(){
-  try { var raw = localStorage.getItem(BEST_KEY); if(raw){ var o = JSON.parse(raw); if(o && typeof o === "object") return o; } } catch(e){}
+  try { var raw = localStorage.getItem(BEST_KEY); if(raw){ var o = JSON.parse(raw); if(o && typeof o === "object"){
+    /* v4.32: v4.31 の 9out/9in キーを開始ホール別キー（9@1 / 9@10）へ移行する */
+    var migrated = false;
+    [["9out", "9@1"], ["9in", "9@10"]].forEach(function(pair){
+      FREE_COURSES.forEach(function(c){
+        var oldK = c.id + "|" + pair[0], newK = c.id + "|" + pair[1];
+        if(Array.isArray(o[oldK])){
+          var merged = (Array.isArray(o[newK]) ? o[newK] : []).concat(o[oldK]);
+          merged.sort(function(a, b){ if(a.score !== b.score) return a.score - b.score; if(a.putts !== b.putts) return a.putts - b.putts; return b.ts - a.ts; });
+          o[newK] = merged.slice(0, 10);
+          delete o[oldK]; migrated = true;
+        }
+      });
+    });
+    if(migrated) saveBest(o);
+    return o;
+  } } } catch(e){}
   return {};
 }
 function saveBest(o){ try { localStorage.setItem(BEST_KEY, JSON.stringify(o)); } catch(e){} }
@@ -4671,16 +4742,15 @@ function chipRow(mount, items, selId, cls, onPick){
   });
 }
 var SEG_ITEMS = [
-  { id:"3", label:"3H ― 手軽に" }, { id:"9out", label:"9H ― OUT（1〜9）" },
-  { id:"9in", label:"9H ― IN（10〜18）" }, { id:"18", label:"18H ― フルラウンド" }
+  { id:"3", label:"3H ― 手軽に" }, { id:"9", label:"9H ― ハーフ" },
+  { id:"18", label:"18H ― フルラウンド" }
 ];
-var START_ITEMS = [1, 4, 7, 10, 13, 16].map(function(n){ return { id:"" + n, label:n + "番〜" }; });
 
 function renderFreeSetup(){
-  chipRow($("freeSegChips"), SEG_ITEMS, FREE.seg, "sel", function(id){ FREE.seg = id; renderFreeSetup(); });
-  $("freeStartRow").style.display = FREE.seg === "3" ? "block" : "none";
-  if(FREE.seg === "3"){
-    chipRow($("freeStartChips"), START_ITEMS, "" + FREE.start, "sel", function(id){ FREE.start = parseInt(id, 10); renderFreeSetup(); });
+  chipRow($("freeSegChips"), SEG_ITEMS, FREE.seg, "sel", function(id){ FREE.seg = id; if(FREE.start > startMax(FREE.seg)) FREE.start = startMax(FREE.seg); renderFreeSetup(); });
+  $("freeStartRow").style.display = (FREE.seg === "3" || FREE.seg === "9") ? "block" : "none";
+  if(FREE.seg === "3" || FREE.seg === "9"){
+    chipRow($("freeStartChips"), startItemsFor(FREE.seg), "" + FREE.start, "sel", function(id){ FREE.start = parseInt(id, 10); renderFreeSetup(); });
   }
   var grid = $("freeCourseGrid"); grid.innerHTML = "";
   var all = loadBest();
@@ -4708,12 +4778,12 @@ function renderFreeSetup(){
   var c = courseById(FREE.course);
   $("freeStartBtn").textContent = "⛳ この条件でティーオフ（" + segLabel(FREE.seg, FREE.start) + "・" + c.name + "）";
   var banner = $("freeResumeBanner");
-  if(S.activeBattle && S.activeBattle.freeRound){
-    var fr = S.activeBattle.freeRound;
+  if(S.activeFree){
+    var fr = S.activeFree.freeRound || {};
     banner.style.display = "block";
-    banner.innerHTML = "⏸ 中断中のフリーラウンドがあります：" + escHtml(fr.courseName) + " " + escHtml(fr.segLabel) +
-      " <button type='button' id='freeResumeBtn' style='margin-left:10px;padding:6px 16px;border-radius:999px;border:1px solid var(--gold);background:rgba(255,200,60,.18);color:#ffe9a8;font-weight:800;cursor:pointer'>その一打から再開する</button>";
-    $("freeResumeBtn").onclick = function(){ closeFreeScr(); resumeFromLoadedState(); };
+    banner.innerHTML = "⏸ 中断中のフリーラウンドがあります：" + escHtml(fr.courseName || S.activeFree.courseName || "") + " " + escHtml(fr.segLabel || "") +
+      " <button type='button' id='freeResumeBtn' style='margin-left:10px;padding:12px 18px;border-radius:999px;border:1px solid var(--gold);background:rgba(255,200,60,.18);color:#ffe9a8;font-weight:800;cursor:pointer'>その一打から再開する</button>";
+    $("freeResumeBtn").onclick = function(){ closeFreeScr(); resumeFreeRound(); };
   } else {
     banner.style.display = "none";
   }
@@ -4727,13 +4797,8 @@ function openFreeScr(){
        { label:"タイトルに戻る", fn:function(){} }]);
     return;
   }
-  if(S.activeBattle && !S.activeBattle.freeRound){
-    openDrama("FREE ROUND", "本編の対戦が途中です",
-      "いま本編のゴルフ対戦が中断中のため、フリーラウンドは開始できません。\n先に対戦を終えてからお越しください（対戦の再開はタイトルの「中断地点から再開」から）。",
-      [{ label:"▶ 対戦を再開する", fn:function(){ resumeFromLoadedState(); } },
-       { label:"タイトルに戻る", fn:function(){} }]);
-    return;
-  }
+  /* v4.33: 本編対戦の途中でもフリーラウンドを開始できる（途中経過は別枠で保持し、本編に触れない） */
+  splitFreeSlot();
   FREE.diff = stateDifficulty(S);
   FREE.dist = stateDistClass(S);
   renderFreeSetup();
@@ -4745,7 +4810,8 @@ function closeFreeScr(){ $("freeScr").style.display = "none"; }
 function launchFreeRound(){
   if(!S) return;
   /* 中断中のフリーラウンドがある場合は上書きせず、その一打から再開する（破棄はゴルフ画面の中断ボタンでのみ） */
-  if(S.activeBattle && S.activeBattle.freeRound){ closeFreeScr(); closeBestScr(); $("freeResultScr").style.display = "none"; resumeFromLoadedState(); return; }
+  splitFreeSlot();
+  if(S.activeFree){ closeFreeScr(); closeBestScr(); $("freeResultScr").style.display = "none"; resumeFreeRound(); return; }
   if(window.__launchLock && Date.now() - window.__launchLock < 2500) return;
   window.__launchLock = Date.now();
   window.__bwLastTgt = null;
@@ -4781,8 +4847,10 @@ function launchFreeRound(){
     freeRound: { course:c.id, courseName:c.name, segment:FREE.seg, segLabel:label, startIdx:startIdx, count:count, recordKey:recordKey(c.id, FREE.seg, FREE.start) }
   };
   FREE.lastCfg = { course:FREE.course, seg:FREE.seg, start:FREE.start, diff:FREE.diff, dist:FREE.dist };
-  S.activeBattle = battleCtx;
-  try { localStorage.setItem("goat_active_battle_v2", JSON.stringify(battleCtx)); } catch(e){}
+  /* v4.33: フリーの途中経過は専用枠へ（本編対戦の途中データには触れない） */
+  S.activeFree = battleCtx;
+  window.__curGolfKind = "free";
+  try { localStorage.setItem("goat_active_free_v1", JSON.stringify(battleCtx)); } catch(e){}
   saveResume();
   closeFreeScr();
   closeBestScr();
@@ -4795,7 +4863,7 @@ function launchFreeRound(){
   wf.classList.remove("active");
   gf.classList.add("active");
   if(window.__curtainShow) __curtainShow();
-  gf.src = "golf.html?goat=1&course=" + encodeURIComponent(c.id) + "&holes=" + count + "&mode=" + encodeURIComponent(S.mode) + "&v=4.2";
+  gf.src = "golf.html?goat=1&course=" + encodeURIComponent(c.id) + "&holes=" + count + "&mode=" + encodeURIComponent(S.mode) + "&kind=free&v=4.2";
   window.__golfBooted = false;
   window.__v49BattleLaunch = true;
   __armBattleWatchdog(gf.src);
@@ -4803,6 +4871,35 @@ function launchFreeRound(){
   setTimeout(function(){ try { gf.focus(); if(gf.contentWindow) gf.contentWindow.focus(); } catch(e){} }, 80);
   narrate("フリーラウンド。" + c.name + "、" + label + "。誰に勝つためでもない、自分の記録との静かな戦いが始まる。", "male");
 }
+
+/* ---- v4.33: 中断中のフリーラウンドを、その一打から再開する（本編対戦の再開とは別経路） ---- */
+function resumeFreeRound(){
+  if(!S) return;
+  splitFreeSlot();
+  if(!S.activeFree || !S.activeFree.course) return;
+  try { localStorage.setItem("goat_active_free_v1", JSON.stringify(S.activeFree)); } catch(e){}
+  window.__curGolfKind = "free";
+  closeFreeScr();
+  closeBestScr();
+  $("freeResultScr").style.display = "none";
+  $("titleScr").style.display = "none";
+  $("charScr").style.display = "none";
+  $("ingameNav").style.display = "flex";
+  updateTopbar();
+  var wf = $("worldFrame"), gf = $("golfFrame");
+  if(wf && wf.contentWindow) wf.contentWindow.postMessage({ type:"goat:pause" }, "*");
+  wf.classList.remove("active");
+  gf.classList.add("active");
+  if(window.__curtainShow) __curtainShow();
+  gf.src = "golf.html?goat=1&course=" + encodeURIComponent(S.activeFree.course) + "&holes=" + S.activeFree.holes + "&mode=" + encodeURIComponent(S.mode) + "&resume=1&kind=free&v=4.2";
+  window.__golfBooted = false;
+  window.__v49BattleLaunch = true;
+  __armBattleWatchdog(gf.src);
+  if(window.__curtainWatch) __curtainWatch(gf);
+  setTimeout(function(){ try { gf.focus(); if(gf.contentWindow) gf.contentWindow.focus(); } catch(e){} }, 80);
+  narrate("中断されていたフリーラウンドを、その一打から再開する。", "male");
+}
+window.__freeResume = resumeFreeRound;
 
 /* ---- 結果処理（handleGolfResult から呼ばれる） ---- */
 window.__freeHandleResult = function(res, ctx){
@@ -4816,7 +4913,7 @@ window.__freeHandleResult = function(res, ctx){
     ts: Date.now()
   };
   var reg = registerBest(fr.recordKey || recordKey(fr.course, fr.segment, FREE.start), entry);
-  FREE.lastCfg = { course: fr.course, seg: fr.segment, start: fr.segment === "3" ? (fr.startIdx + 1) : 1, diff: entry.diff, dist: entry.dist };
+  FREE.lastCfg = { course: fr.course, seg: (fr.segment === "9out" || fr.segment === "9in") ? "9" : fr.segment, start: fr.segment === "18" ? 1 : ((fr.startIdx || 0) + 1), diff: entry.diff, dist: entry.dist };
   var gf = $("golfFrame");
   gf.classList.remove("active");
   try { gf.src = "about:blank"; } catch(e){}
@@ -4872,10 +4969,10 @@ function renderFreeResult(res, fr, entry, reg, birdies){
 /* ---- ベスト10画面 ---- */
 function renderBestScr(){
   chipRow($("bestCourseChips"), FREE_COURSES.map(function(c){ return { id:c.id, label:c.flag + " " + c.name }; }), BESTV.course, "csel", function(id){ BESTV.course = id; renderBestScr(); });
-  chipRow($("bestSegChips"), SEG_ITEMS, BESTV.seg, "sel", function(id){ BESTV.seg = id; renderBestScr(); });
-  $("bestStartRow").style.display = BESTV.seg === "3" ? "block" : "none";
-  if(BESTV.seg === "3"){
-    chipRow($("bestStartChips"), START_ITEMS, "" + BESTV.start, "sel", function(id){ BESTV.start = parseInt(id, 10); renderBestScr(); });
+  chipRow($("bestSegChips"), SEG_ITEMS, BESTV.seg, "sel", function(id){ BESTV.seg = id; if(BESTV.start > startMax(BESTV.seg)) BESTV.start = startMax(BESTV.seg); renderBestScr(); });
+  $("bestStartRow").style.display = (BESTV.seg === "3" || BESTV.seg === "9") ? "block" : "none";
+  if(BESTV.seg === "3" || BESTV.seg === "9"){
+    chipRow($("bestStartChips"), startItemsFor(BESTV.seg), "" + BESTV.start, "sel", function(id){ BESTV.start = parseInt(id, 10); renderBestScr(); });
   }
   var key = recordKey(BESTV.course, BESTV.seg, BESTV.start);
   var list = bestList(key);
@@ -4902,10 +4999,11 @@ function closeBestScr(){ $("bestScr").style.display = "none"; }
 window.addEventListener("message", function(ev){
   var d = ev.data;
   if(!d || typeof d !== "object" || d.type !== "goat:freeAbort") return;
-  if(!S || !S.activeBattle || !S.activeBattle.freeRound) return;
+  if(!S || !S.activeFree) return;
   if(S.mode !== "goat" && typeof d.ballsLeft === "number") S.balls = Math.max(0, Math.round(d.ballsLeft));
-  S.activeBattle = null;
-  try { localStorage.removeItem("goat_active_battle_v2"); } catch(e){}
+  S.activeFree = null;
+  window.__curGolfKind = null;
+  try { localStorage.removeItem("goat_active_free_v1"); } catch(e){}
   var gf = $("golfFrame");
   gf.classList.remove("active");
   try { gf.src = "about:blank"; } catch(e){}
@@ -4932,7 +5030,6 @@ document.addEventListener("DOMContentLoaded", function(){
   });
   $("bestPlayBtn").addEventListener("click", function(){
     if(!ensureStateForFree()){ closeBestScr(); openFreeScr(); return; }
-    if(S.activeBattle && !S.activeBattle.freeRound){ closeBestScr(); openFreeScr(); return; }
     FREE.course = BESTV.course; FREE.seg = BESTV.seg; FREE.start = BESTV.start;
     FREE.diff = stateDifficulty(S); FREE.dist = stateDistClass(S);
     closeBestScr();
