@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.33');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.34');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -2525,6 +2525,7 @@ class GolfGame{
         if(o.geometry){ try{ o.geometry.dispose(); }catch(e){} }
         if(o.material){ const _ms=Array.isArray(o.material)?o.material:[o.material]; for(const _m of _ms){ try{ _m.dispose(); }catch(e){} /* v4.14: シャツ用CanvasTexture（ホール毎に1枚生成）もここで解放。共有のファイルテクスチャはCanvasTextureではないため対象外 */ for(const _slot of ['map','normalMap','roughnessMap','emissiveMap']){ const _tx=_m[_slot]; if(_tx && _tx.isCanvasTexture){ try{ _tx.dispose(); }catch(e2){} } } } }
         if(o.isInstancedMesh && o.dispose){ try{ o.dispose(); }catch(e){} }
+        if(o.isLight && o.shadow && o.shadow.map){ try{ o.shadow.map.dispose(); }catch(e){} o.shadow.map=null; } /* v4.34 A/D-1: 太陽光のシャドウマップ（2048×2048のレンダーターゲット）も解放する。従来はシーンから外すだけで、ホール毎に1枚ずつGPUに残留し info.memory.textures が +1/読み込みで増え続けていた（v4.33 で8回読み込み 24→31 を実測。プローブ tex434b で前ホール分のシャドウマップを dispose すると -1 になることで原因確定。シャツ CanvasTexture・クローンテクスチャは既に解放されており無実）。18H のフリーラウンドでは約18枚分（2048×2048 の深度テクスチャ）が溜まる計算で、iPhone の途中停止（安定性最優先課題）の危険因子だった。 */
       });
     }
     if(this.fx){ this.fx.particles.length=0; this.fx.rings.length=0; } /* FX の対象メッシュは上記で解放済みのため参照だけを空にする */
