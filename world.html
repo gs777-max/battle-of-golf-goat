@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.34 | WebGL版</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.35 | WebGL版</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap">
@@ -189,7 +189,8 @@
 
     .cslot {
       position: relative;
-      padding: 12px 12px;
+      /* v4.35 A-1: タップ対象を44px以上に（padding 12px→14px。ワールドのクラブ切替） */
+      padding: 14px 12px;
       border-radius: 10px;
       cursor: pointer;
       font-size: 11.5px;
@@ -553,7 +554,7 @@
       }
 
       .cslot {
-        padding: 11px 9px;
+        padding: 14px 9px; /* v4.35 A-1: タップ対象を44px以上に */
         font-size: 10.5px;
       }
 
@@ -764,7 +765,7 @@
       .mini-stats { flex-wrap: wrap; gap: 3px 8px; font-size: 10px; margin-top: 4px; padding-top: 4px; }
       #topRightHud { max-width: 214px; }
       .club-bar { flex-wrap: wrap; justify-content: flex-end; }
-      .cslot { font-size: 10px; padding: 10px 8px; }
+      .cslot { font-size: 10px; padding: 14px 8px; } /* v4.35 A-1: タップ対象を44px以上に */
       /* 下段：スティック／ゲージ／アクションドック／ミニマップを段差配置にして重ねない */
       #bottomLeftHud { bottom: 62px; width: 190px; }
       #vStickWrap { bottom: 200px; left: 10px; width: 104px; }
@@ -780,18 +781,18 @@
       #minimap { width: 104px !important; height: 104px !important; }
     }
   </style>
-<script src="assets/diag-overlay.js?v=4.34"></script>
+<script src="assets/diag-overlay.js?v=4.35"></script>
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.34",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.34",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.34",
+ "three": "./assets/lib/r180/three.module.js?v=4.35",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.35",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.35",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.34",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.34"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.35",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.35"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.34"></script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.35"></script>
 </head>
 
 <body>
