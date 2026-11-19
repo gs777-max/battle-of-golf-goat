@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.35）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.36）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -122,6 +123,12 @@
   }
   /* v4.29 A-3: デスクトップのみトップバーのボタンを 44px 化する（#topbar 高さ 54px 固定のためレイアウト不変。モバイル 44px バー・短身 38px バー・ダイアログ内のボタンには適用しない）。 */
   @media (min-width: 901px) and (min-height: 521px) {
+    #topbar .tbtn { min-height: 44px; box-sizing: border-box; }
+  }
+  /* v4.36 A-3: モバイル（幅900px以下・高さ521px以上）のトップバーボタンも 44px 化する。
+     バー高さ 44px 固定のためレイアウト不変（min-height＋border-box でボタンがバーにちょうど収まる）。
+     短画面（高さ520px以下・バー38px）には適用しない。ダイアログ内のボタンには適用しない。 */
+  @media (max-width: 900px) and (min-height: 521px) {
     #topbar .tbtn { min-height: 44px; box-sizing: border-box; }
   }
   .tbtn:hover:not(:disabled) {
@@ -489,7 +496,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.35"></script>
+<script src="assets/diag-overlay.js?v=4.36"></script>
 </head>
 <body>
 
@@ -571,7 +578,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.35【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.36【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -4498,7 +4505,7 @@ function renderCharPortraitSVG(c){
     row.style.cssText = "margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;";
     var bExp = document.createElement("button");
     bExp.className = "bigbtn ghost"; bExp.textContent = "💾 セーブを書き出す";
-    bExp.style.cssText = "font-size:12.5px;padding:7px 14px;";
+    bExp.style.cssText = "font-size:12.5px;padding:14px 16px;"; /* v4.36 A-1: タップ対象を44px以上に（padding 7px→14px） */
     bExp.onclick = function(){
       var data = {};
       SAVE_KEYS.concat([REC_KEY]).forEach(function(k){
@@ -4515,7 +4522,7 @@ function renderCharPortraitSVG(c){
     };
     var bImp = document.createElement("button");
     bImp.className = "bigbtn ghost"; bImp.textContent = "📥 セーブを復元する";
-    bImp.style.cssText = "font-size:12.5px;padding:7px 14px;";
+    bImp.style.cssText = "font-size:12.5px;padding:14px 16px;"; /* v4.36 A-1: タップ対象を44px以上に（padding 7px→14px） */
     var fileIn = document.createElement("input");
     fileIn.type = "file"; fileIn.accept = ".json,application/json"; fileIn.style.display = "none";
     bImp.onclick = function(){ fileIn.click(); };
