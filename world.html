@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.37 | WebGL版</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.38 | WebGL版</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap">
@@ -487,6 +487,7 @@
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
       touch-action: none;
       transition: all 0.15s;
+      min-height: 44px; box-sizing: border-box; /* v4.38 A-1: 中間幅（768px）で42pxだったため全幅で44pxを保証 */
     }
 
     #dashToggleBtn.on {
@@ -521,6 +522,7 @@
       cursor: pointer;
       box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), 0 0 16px rgba(255, 196, 60, 0.28);
       touch-action: none;
+      min-height: 44px; box-sizing: border-box; /* v4.38 A-1: 中間幅（768px）で43pxだったため全幅で44pxを保証 */
     }
 
     #chargeBtn:active {
@@ -784,18 +786,18 @@
       #minimap { width: 104px !important; height: 104px !important; }
     }
   </style>
-<script src="assets/diag-overlay.js?v=4.37"></script>
+<script src="assets/diag-overlay.js?v=4.38"></script>
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.37",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.37",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.37",
+ "three": "./assets/lib/r180/three.module.js?v=4.38",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.38",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.38",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.37",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.37"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.38",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.38"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.37"></script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.38"></script>
 </head>
 
 <body>
