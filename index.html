@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.38）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.39）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -496,7 +496,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.38"></script>
+<script src="assets/diag-overlay.js?v=4.39"></script>
 </head>
 <body>
 
@@ -578,7 +578,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.38【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.39【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -2410,6 +2410,7 @@ function __v45Toast(msg, onRetry){
 function __armBattleWatchdog(url){
   if(window.__bwTimer) clearTimeout(window.__bwTimer);
   window.__bwDefer = 0;
+  window.__bwLoadDefer = 0; /* v4.39: 文書読込中の再試行の延期回数 */
   var tries = 0;
   var check = function(){
     window.__bwTimer = null;
@@ -2419,6 +2420,21 @@ function __armBattleWatchdog(url){
        （再構築は対戦中 world 破棄の帰結であり、hello 到着で解除される。無限待ち防止に上限つき） */
     if(window.__worldRebuilding && (window.__bwDefer = (window.__bwDefer || 0) + 1) <= 6){
       window.__bwTimer = setTimeout(check, 5000);
+      return;
+    }
+    /* v4.39: 対戦の起動挨拶(hello)は文書の load 完了後に送られる。冷えた初回起動など
+       文書がまだ読込中(readyState が 'loading'/'interactive')の間は、再試行の src 設定で
+       読込中の通信(テクスチャ等)を中断しないよう、再試行を延期する(最大4回=60秒)。
+       文書の読込が終わっている('complete')のに挨拶がない場合だけ、従来どおり src を
+       設定し直す(本当に止まった起動の回復)。延期は再試行の回数を消費しない。 */
+    var docStillLoading = false;
+    try {
+      var gd = gf.contentDocument;
+      if(!gd || gd.readyState !== "complete") docStillLoading = true;
+    } catch(e) { docStillLoading = false; }
+    if(docStillLoading && (window.__bwLoadDefer = (window.__bwLoadDefer || 0) + 1) <= 4){
+      __v45Toast("対戦の読み込みに時間がかかっています…");
+      window.__bwTimer = setTimeout(check, 15000);
       return;
     }
     tries++;
