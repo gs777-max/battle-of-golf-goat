@@ -21,7 +21,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader();
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.40');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.41');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -30,10 +30,11 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
       var w = window.HQG._waiters[name] || []; window.HQG._waiters[name] = [];
       for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
     }, undefined, function(){
-      /* v4.9: テクスチャ読込失敗を無言で握らず最大2回まで再試行する */
+      /* v4.41: テクスチャ読込失敗の再試行を GLB と同型のバックオフ方式に寄せる
+         （最大10回・間隔は 2500ms刻みで上限10秒。成功時は挙動不変） */
       window.HQG._tf = window.HQG._tf || {};
       var f = (window.HQG._tf[name] || 0) + 1; window.HQG._tf[name] = f;
-      if(f <= 2) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, 1500);
+      if(f <= 10) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, Math.min(2500 * Math.ceil(f / 2), 10000));
     });
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     if(rx) t.repeat.set(rx, ry || rx);

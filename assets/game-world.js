@@ -31,17 +31,18 @@
   (function(){
     var TL = new THREE.TextureLoader();
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.40');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.41');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
       var w = window.HQW._waiters[name] || []; window.HQW._waiters[name] = [];
       for(var i=0;i<w.length;i++){ try{ w[i](); }catch(e){} }
     }, undefined, function(){
-      /* v4.9: テクスチャ読込失敗を無言で握らず最大2回まで再試行する */
+      /* v4.41: テクスチャ読込失敗の再試行を GLB と同型のバックオフ方式に寄せる
+         （最大10回・間隔は 2500ms刻みで上限10秒。成功時は挙動不変） */
       window.HQW._tf = window.HQW._tf || {};
       var f = (window.HQW._tf[name] || 0) + 1; window.HQW._tf[name] = f;
-      if(f <= 2) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, 1500);
+      if(f <= 10) setTimeout(function(){ loadTex(name, srgb, rx, ry); }, Math.min(2500 * Math.ceil(f / 2), 10000));
     });
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       if(rx) t.repeat.set(rx, ry || rx);
