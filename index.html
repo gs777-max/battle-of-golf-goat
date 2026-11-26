@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.41）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.42）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -496,7 +496,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.41"></script>
+<script src="assets/diag-overlay.js?v=4.42"></script>
 </head>
 <body>
 
@@ -578,7 +578,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.41【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.42【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -2296,6 +2296,8 @@ targetUrl += "&px=" + encodeURIComponent(S._v49Pos.x) + "&pz=" + encodeURICompon
     /* v4.9: world 再構築中フラグ（完了は goat:hello で解除）。対戦起動ウォッチドッグの猶予判定に使う */
     window.__worldRebuilding = true;
     wf.src = targetUrl;
+    /* v4.42: ワールド起動ウォッチドッグを仕掛ける（下の __armWorldWatchdog）。 */
+    if(window.__armWorldWatchdog) __armWorldWatchdog(targetUrl);
     if(window.__curtainWatch) __curtainWatch(wf);
   } else {
     setTimeout(function(){ if(window.__curtainHide) __curtainHide(); }, 150);
@@ -2456,6 +2458,48 @@ function __armBattleWatchdog(url){
     }
   };
   window.__bwTimer = setTimeout(check, 15000);
+}
+
+/* v4.42: ワールド起動ウォッチドッグ。対戦側の __armBattleWatchdog (v4.5/v4.39) と同型。
+   world からの挨拶 (goat:hello) が来ない場合の案内と再試行。従来は world.html 自体の
+   読込失敗 (404/通信断) に対して何も起きず、画面は無言のまま・__worldRebuilding も
+   立ちっぱなしだった（項目17 の iframe error は Chrome では HTTP 失敗時に発火しない）。
+   文書がまだ読込中の間は対戦側と同じく再試行を延期する（最大4回=60秒）。
+   失敗時の「もう一度試す」は enterWorld(true) でワールドを読み直す。 */
+function __armWorldWatchdog(url){
+  if(window.__wwTimer) clearTimeout(window.__wwTimer);
+  window.__wwLoadDefer = 0;
+  window.__wwLastUrl = url;
+  var tries = 0;
+  var check = function(){
+    window.__wwTimer = null;
+    var wf = document.getElementById("worldFrame");
+    if(!wf || !wf.classList.contains("active") || !window.__worldRebuilding) return;
+    if(!wf.src || wf.src.indexOf("world.html") === -1) return;
+    /* v4.39 と同型: 文書がまだ読込中は再試行で読込中の通信を中断しないよう延期する
+       （最大4回=60秒）。延期は再試行の回数を消費しない。 */
+    var docStillLoading = false;
+    try {
+      var wd = wf.contentDocument;
+      if(!wd || wd.readyState !== "complete") docStillLoading = true;
+    } catch(e) { docStillLoading = false; }
+    if(docStillLoading && (window.__wwLoadDefer = (window.__wwLoadDefer || 0) + 1) <= 4){
+      __v45Toast("ワールドの読み込みに時間がかかっています…");
+      window.__wwTimer = setTimeout(check, 15000);
+      return;
+    }
+    tries++;
+    if(tries === 1){
+      __v45Toast("ワールドの読み込みに時間がかかっています。再試行します…");
+      wf.src = window.__wwLastUrl || url;
+      window.__wwTimer = setTimeout(check, 15000);
+    } else {
+      __v45Toast("ワールドを開始できませんでした", function(){
+        enterWorld(true);
+      });
+    }
+  };
+  window.__wwTimer = setTimeout(check, 15000);
 }
 
 function launchGolfIframe(tgt, overrideCharId){
