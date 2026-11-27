@@ -78,7 +78,7 @@
     };
     var TL = new THREE.TextureLoader(window.HQW._lm);
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.43');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.44');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;

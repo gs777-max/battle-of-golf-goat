@@ -4,7 +4,7 @@
    construction arguments in world.html / golf.html. */
 /* v4.9: アセット版数トークン。firebase の assets 30日キャッシュに対し、版上げ時は
    この値と HTML 側の ?v= を差し替えることで全アセットを確実に入れ替える（単一の変更点）。 */
-const ASSET_V = '4.43';
+const ASSET_V = '4.44';
 window.__GOAT_AV__ = ASSET_V;
 
 import * as THREE_NS from 'three';
@@ -58,7 +58,10 @@ export async function boot(opts) {
   window.THREE = THREE;
   window.MeshoptDecoder = MeshoptDecoder;
   window.__GOAT_ENGINE__ = { variant: 'webgl-r180', backend: 'webgl', adapter: null, error: null };
-  showEngineBadge(window.__GOAT_ENGINE__, opts.gameSrc);
+  /* v4.44: #engineBadge（「描画: WebGL」ピル）の常駐表示をやめる。
+     ワールド（phone）で HUD に重なり、対戦（phone）では SCORE パネル左上に重なっていたため。
+     同じ描画方式の情報はタイトル画面の #engineChip に残る。
+     engineLabel / showEngineBadge の関数定義自体は残す（最小差分）。 */
   window.__GOAT_SHADER__ = function (name, desc) { return new THREE.ShaderMaterial(desc); };
   window.__GOAT_RENDERER__ = new THREE.WebGLRenderer(opts.params);
   console.log('[GOAT engine] variant=webgl-r180 backend=webgl');

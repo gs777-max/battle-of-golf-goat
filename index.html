@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
-<title>BATTLE OF GOLF - GOAT | WebGL版（v4.43）</title>
+<title>BATTLE OF GOLF - GOAT | WebGL版（v4.44）</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -377,7 +377,7 @@
   #nameInput {
     margin-top: 18px; background: rgba(10,12,26,0.92); border: 1.5px solid var(--border-gold);
     color: #fff; border-radius: 10px; padding: 10px 16px; font-size: 16px; font-weight: 700;
-    width: 280px; text-align: center; outline: none;
+    width: 280px; text-align: center; outline: none; min-height: 44px;
   }
   #nameInput:focus { border-color: var(--gold-bright); box-shadow: 0 0 16px rgba(255,216,117,0.35); }
 
@@ -496,7 +496,7 @@
   #narrText { font-size: 0.82rem !important; }
 }
 </style>
-<script src="assets/diag-overlay.js?v=4.43"></script>
+<script src="assets/diag-overlay.js?v=4.44"></script>
 </head>
 <body>
 
@@ -552,20 +552,20 @@
       一打の波動で残影を浄化し、伝説の王者たちと魂のラウンドを交わし、天岩戸の光を取り戻せ。
     </div>
     <div class="modes">
-      <div class="mode-card sel" id="modeNormal" tabindex="0">
+      <div class="mode-card sel" id="modeNormal" tabindex="0" role="button" aria-pressed="true">
         <span class="mode-sel-badge">✓ 選択中</span>
         <div class="mt"><span>🏌️ 通常モード（王道神話本編）</span><span style="font-size:12px;color:var(--cyan)">STANDARD</span></div>
         <div class="md">設計書どおりの完全バランス。ボールと賞金を管理し、全11枠ギアと神器を集め、18本の運命の糸とマルチラスボス分岐を歩む没入の旅。</div>
         <div class="saveinfo" id="saveInfoNormal"></div>
       </div>
-      <div class="mode-card" id="modeGoat" tabindex="0">
+      <div class="mode-card" id="modeGoat" tabindex="0" role="button" aria-pressed="false">
         <div class="mt"><span>👑 GOATモード（神装完成・無敵）</span><span style="font-size:12px;color:var(--gold)">INVINCIBLE</span></div>
         <div class="md">開始からランク最高位「グランドスラマー」／パワー＆メンタル常時100%無敵／三種の神器＋オリンポス8神器の「神装完成」＆ボール無限。全エリア即時解放！</div>
         <div class="saveinfo" id="saveInfoGoat"></div>
       </div>
     </div>
     <!-- v4.31: フリーラウンド（第3の入口。本編セーブの実力を引き継ぐ単独ラウンド） -->
-    <div class="mode-card free" id="modeFree" tabindex="0" style="margin-top:14px;border-color:rgba(92,225,230,.55)">
+    <div class="mode-card free" id="modeFree" tabindex="0" role="button" style="margin-top:14px;border-color:rgba(92,225,230,.55)">
       <div class="mt"><span>⛳ フリーラウンド（自由に回る）</span><span style="font-size:12px;color:var(--cyan)">FREE ROUND ・ NEW</span></div>
       <div class="md">既存の8コースを 3H／9H／18H で自由にラウンド。本編セーブの主人公・ランク・装備中のギアを引き継いでプレイし、コースごとにベスト10を記録します（相手はいません）。</div>
       <div class="saveinfo" id="saveInfoFree"></div>
@@ -578,7 +578,7 @@
       <button class="bigbtn ghost" id="loadSlotBtn">📂 セーブスロット（5枠）</button>
     </div>
     <div style="margin-top:16px;font-size:11.5px;color:#7e88ab;">
-      Complete Master Edition v4.43【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
+      Complete Master Edition v4.44【WebGL版・新エンジン】｜ 全5エリア＋天空の神域 ｜ 全11コース3D決戦 ｜ 全11枠ギア80種 ｜ 四神波動MAX ｜ 5モード高速移動搭載
     </div>
     <div id="engineChip" style="margin-top:8px;font-size:11.5px;color:#ffd875;font-weight:700;">描画: 確認中…（ワールドに入ると実際に描いている方式が表示されます）</div>
   </div>
@@ -2240,6 +2240,30 @@ function focusWorldFrame(){
   }, 40);
 }
 
+/* v4.44: 全画面オーバーレイ表示中はトップバーと語りバーを隠す（候補A）。
+   オーバーレイの半透明背景がトップバー・語りバーの上に重なり、透け文字になっていたため。
+   オーバーレイの style.display を MutationObserver で監視し、body の shell-overlay-open
+   クラスと同期する。オーバーレイを閉じる経路はすべて style.display を直接書き換えるため、
+   Observer 経由で必ず同期される。.modal-back（施設モーダル）は対象外。 */
+var SHELL_OVERLAY_IDS = ["titleScr", "charScr", "settingScr", "freeScr", "bestScr", "freeResultScr"];
+function syncShellBars(){
+  var open = false;
+  for(var i = 0; i < SHELL_OVERLAY_IDS.length; i++){
+    var el = document.getElementById(SHELL_OVERLAY_IDS[i]);
+    if(el && el.style.display !== "none"){ open = true; break; }
+  }
+  document.body.classList.toggle("shell-overlay-open", open);
+}
+function watchShellOverlays(){
+  SHELL_OVERLAY_IDS.forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el || !window.MutationObserver) return;
+    new MutationObserver(function(){ syncShellBars(); }).observe(el, { attributes: true, attributeFilter: ["style"] });
+  });
+  syncShellBars();
+}
+watchShellOverlays();
+
 function syncWorldFrame(){
   var wf = document.getElementById("worldFrame");
   if(wf && wf.contentWindow && S){
@@ -3882,6 +3906,13 @@ function syncModeSelBadge(){
     b.textContent = "✓ 選択中";
     sel.appendChild(b);
   }
+  /* v4.44: モードカードの選択状態を aria-pressed と同期する（候補C）。
+     .sel の有無が選択状態の正であるため、ここで一緒に同期すれば selectTitleMode() 経由の
+     両経路（クリック・キーボード）がカバーされる。#modeFree は遷移カードのため対象外。 */
+  var mn = document.getElementById("modeNormal");
+  if(mn) mn.setAttribute("aria-pressed", mn.classList.contains("sel") ? "true" : "false");
+  var mg = document.getElementById("modeGoat");
+  if(mg) mg.setAttribute("aria-pressed", mg.classList.contains("sel") ? "true" : "false");
 }
 
 function selectTitleMode(m){
@@ -4034,6 +4065,10 @@ function renderCharSelection(){
     var box = document.createElement("div");
     box.className = "char-box" + (c.id === selectedHeroId ? " sel" : "");
     box.tabIndex = 0;
+    /* v4.44: 主人公カードに role と選択状態を付ける（候補C）。
+       再描画のたびに作り直されるため、同期漏れがない。 */
+    box.setAttribute("role", "button");
+    box.setAttribute("aria-pressed", c.id === selectedHeroId ? "true" : "false");
     box.innerHTML =
       "<div class='char-swatch' style='background:" + c.color + "'>" + renderCharPortraitSVG(c) + "</div>" +
       "<div class='char-nm'>" + c.id + "</div>" +
@@ -4397,6 +4432,12 @@ body.narr-folded #stage { bottom: 0 !important; }
 body.narr-folded #lbB { height: 0 !important; }
 #narrTab { position: fixed; right: 0; top: 46%; z-index: 29; display: none; padding: 10px 3px; border-radius: 8px 0 0 8px; background: rgba(20,24,44,.92); border: 1px solid rgba(255,216,117,.55); border-right: none; color: #ffd875; font-size: 10.5px; writing-mode: vertical-rl; cursor: pointer; }
 body.narr-folded #narrTab { display: block; }
+/* v4.44: 全画面オーバーレイ表示中はトップバーと語りバーを隠す（候補A）。
+   オーバーレイ（z-index 40）の半透明背景がトップバー（z-index 30）・語りバー（z-index 28）の
+   上に重なり、タイトル画面で「京都」ピル等が透け文字（実効コントラスト 2.71:1）になっていた。
+   display:none にすれば、見えない「▾ 畳む」ボタンに Tab フォーカスが届く問題も同時に解消する。
+   #narrTab の規則の後ろに置く（詳細度が同じため、後勝ちで負けないようにする）。 */
+body.shell-overlay-open #topbar, body.shell-overlay-open #narr, body.shell-overlay-open #narrTab { display: none !important; }
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
