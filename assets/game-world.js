@@ -28,10 +28,57 @@
   var _elThreatAura = document.getElementById("threatAura");
   var _elInteractPrompt = document.getElementById("interactPrompt");
   var _elPromptLabel = document.getElementById("promptLabel");
+  /* v4.43: ワールドの読み込み表示（#loading）を初フレームで消す（対戦側 v4.19 と同型）。
+     描画が始まらない場合の安全策として25秒で必ず消す。 */
+  var _elWorldLoading = document.getElementById("loading");
+  var _worldLoadingHidden = false;
+  function __hideWorldLoading(){
+    if(_worldLoadingHidden) return;
+    _worldLoadingHidden = true;
+    try{ if(_elWorldLoading) _elWorldLoading.style.display = "none"; }catch(e){}
+  }
+  setTimeout(function(){ __hideWorldLoading(); }, 25000);
   (function(){
-    var TL = new THREE.TextureLoader();
+    /* v4.43: 読み込みの進み具合を表示する（観点: ユーザビリティ。対戦側と同型）。
+       テクスチャ/GLB の読み込みを1つの LoadingManager に集約し、進捗を #loading の
+       バー・％・段階文言に反映する。表示だけの変更で、読み込み順序・再試行（v4.41）・
+       適用タイミング・描画・レイアウトには触れない。表示は単調（後戻りしない）。 */
+    window.HQW._lm = new THREE.LoadingManager();
+    window.HQW._lmShown = 0;
+    window.HQW._lmStage = function(url){
+      if(!url) return '読み込み中…';
+      if(url.indexOf('.glb') !== -1) return '主人公と仲間のモデルを読み込み中…';
+      if(url.indexOf('/textures/') !== -1) return '大地と街の絵を読み込み中…';
+      return '読み込み中…';
+    };
+    window.HQW._lm.onProgress = function(url, loaded, total){
+      try{
+        var pct = total > 0 ? Math.floor(100 * loaded / total) : 0;
+        if(pct < window.HQW._lmShown) pct = window.HQW._lmShown;
+        window.HQW._lmShown = pct;
+        var bar = document.getElementById('loadBarFill');
+        if(bar) bar.style.width = pct + '%';
+        var track = document.getElementById('loadBarTrack');
+        if(track) track.setAttribute('aria-valuenow', String(pct));
+        var pc = document.getElementById('loadPct');
+        if(pc) pc.textContent = pct + '%';
+        var st = document.getElementById('loadStage');
+        if(st) st.textContent = window.HQW._lmStage(url);
+      }catch(e){}
+    };
+    window.HQW._lm.onLoad = function(){
+      try{
+        var bar = document.getElementById('loadBarFill');
+        if(bar) bar.style.width = '100%';
+        var pc = document.getElementById('loadPct');
+        if(pc) pc.textContent = '100%';
+        var st = document.getElementById('loadStage');
+        if(st) st.textContent = '読み込み完了';
+      }catch(e){}
+    };
+    var TL = new THREE.TextureLoader(window.HQW._lm);
     /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与する */
-    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.42');
+    var AVQ = '?v=' + (window.__GOAT_AV__ || '4.43');
     function loadTex(name, srgb, rx, ry){
     var t = TL.load('assets/textures/' + name + '.png' + AVQ, function(){
       window.HQW._ready[name] = 1;
@@ -95,7 +142,7 @@ function _bmOnW(){ _bmDepthW--; if(_bmDepthW <= 0){ _bmDepthW = 0; try{ window.c
 window.HQW._glbLoad = function(url, noBitmap, onOk, onFail){
 window.HQW._decoderReady(function(){
 try{
-var loader = new THREE.GLTFLoader();
+var loader = new THREE.GLTFLoader(window.HQW._lm);
 if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
 if(noBitmap) _bmOffW();
 loader.load(url, function(g){ if(noBitmap) _bmOnW(); onOk(g);}, undefined, function(err){ if(noBitmap) _bmOnW(); onFail(err);});
@@ -3421,6 +3468,7 @@ scene.remove(m.mesh);
       if (hitstopTimer > 0) {
         hitstopTimer -= dt;
         renderer.render(scene, camera);
+        __hideWorldLoading(); /* v4.43: 初フレームで読み込み表示を消す */
         window.__goatDiagLoopOk("worldAnimate");
         return;
       }
@@ -3937,6 +3985,7 @@ scene.remove(m.mesh);
       /* v4.27 P-W2: ミニマップは約15Hzに間引く（156pxの地図では最高速でも1更新2px未満のため見た目は変わらない。タップ瞬移の座標計算は描画と独立）。 */
       if (elapsed - _lastMiniT >= 0.066) { _lastMiniT = elapsed; renderMinimap(); }
       renderer.render(scene, camera);
+      __hideWorldLoading(); /* v4.43: 初フレームで読み込み表示を消す */
       window.__goatDiagLoopOk("worldAnimate");
       }catch(e){ window.__goatDiagLoopErr("worldAnimate", e); }
     }

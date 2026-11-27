@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd059'/%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23a67c00' stroke-width='1'/%3E%3C/svg%3E"> <!-- v4.36 A-2: favicon 404 解消（data-URI） -->
-  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.42 | WebGL版</title>
+  <title>BATTLE OF GOLF - GOAT | Next-Gen 3D Action RPG World v4.43 | WebGL版</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700;900&display=swap">
@@ -35,6 +35,39 @@
       position: absolute;
       inset: 0;
       touch-action: none;
+    }
+
+    /* v4.43: 読み込み表示（対戦側 #loading と同型。初フレームで消える。表示だけの追加） */
+    #loading {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #05060e;
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+    .loading-spinner {
+      width: 46px; height: 46px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #7ee2a0;
+      border-radius: 50%;
+      -webkit-animation: spin 0.75s linear infinite;
+      animation: spin 0.75s linear infinite;
+    }
+    #loadBarTrack {
+      width: 220px; max-width: 70vw; height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .12);
+      overflow: hidden;
+    }
+    #loadBarFill {
+      height: 100%; width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ffd875, #7ee2a0);
+      transition: width .25s ease;
     }
 
     #gl canvas {
@@ -755,7 +788,14 @@
       .toast {
         animation: none !important;
       }
+      .loading-spinner {
+        animation: none !important;
+        -webkit-animation: none !important;
+      }
     }
+
+    /* v4.43: 読み込みスピナーの回転（対戦側と同型） */
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* =====================================================================
        LAYOUT FIX v4.0（④スマホ縦画面：上下HUDの重なり解消／①上段パネルの両立）
@@ -786,22 +826,30 @@
       #minimap { width: 104px !important; height: 104px !important; }
     }
   </style>
-<script src="assets/diag-overlay.js?v=4.42"></script>
+<script src="assets/diag-overlay.js?v=4.43"></script>
 <script type="importmap">
 {"imports":{
- "three": "./assets/lib/r180/three.module.js?v=4.42",
- "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.42",
- "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.42",
+ "three": "./assets/lib/r180/three.module.js?v=4.43",
+ "three/webgpu": "./assets/lib/r180/three.webgpu.js?v=4.43",
+ "three/tsl": "./assets/lib/r180/three.tsl.js?v=4.43",
  "three/addons/": "./assets/lib/r180/addons/",
- "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.42",
- "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.42"
+ "three/addons/loaders/GLTFLoader.js": "./assets/lib/r180/addons/loaders/GLTFLoader.js?v=4.43",
+ "three/addons/libs/meshopt_decoder.module.js": "./assets/lib/r180/addons/libs/meshopt_decoder.module.js?v=4.43"
 }}
 </script>
-<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.42"></script>
+<script type="module" src="assets/lib/r180/bootstrap-world.js?v=4.43"></script>
 </head>
 
 <body>
 
+  <!-- v4.43: 読み込み表示（ワールドは従来ここが真っ暗だった。初フレームで消える） -->
+  <div id="loading">
+    <div class="loading-spinner"></div>
+    <div style="font-size:1rem;font-weight:900;color:#ffd875;">BATTLE OF GOLF - GOAT</div>
+    <div id="loadBarTrack" role="progressbar" aria-label="読み込みの進み具合" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loadBarFill"></div></div>
+    <div id="loadPct" style="font-size:0.85rem;color:#ffd875;font-weight:700;">読み込み中…</div>
+    <div id="loadStage" style="font-size:0.75rem;color:#8ab;"></div>
+  </div>
   <div id="gl"></div>
   <div id="vignette"></div>
   <div id="threatAura"></div>

@@ -18,10 +18,48 @@ window.__goatDiagFail = function(slot, detail, e){ try{ var D = window.__GOAT_DI
 window.__goatDiagLoopErr = function(slot, e){ try{ var D = window.__GOAT_DIAG__; if(!D || !D[slot]) return; var s = D[slot]; s.consecErrors = (s.consecErrors || 0) + 1; s.lastError = (e && e.message) ? String(e.message).slice(0, 200) : String(e).slice(0, 200); s.lastErrorAt = Date.now(); }catch(_){} };
 window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(D && D[slot]) D[slot].consecErrors = 0; }catch(_){} };
 (function(){
-  var TL = new THREE.TextureLoader();
+  /* v4.43: 読み込みの進み具合を表示する（観点: ユーザビリティ）。
+     テクスチャ/GLB の読み込みを1つの LoadingManager に集約し、進捗を #loading の
+     バー・％・段階文言に反映する。表示だけの変更で、読み込み順序・再試行（v4.41）・
+     適用タイミング・描画・レイアウトには触れない。失敗して再試行する分は進捗の
+     分母に1件増えるが、表示は単調（後戻りしない）にする。 */
+  window.HQG._lm = new THREE.LoadingManager();
+  window.HQG._lmShown = 0;
+  window.HQG._lmStage = function(url){
+    if(!url) return '読み込み中…';
+    if(url.indexOf('.glb') !== -1) return '選手とコースのモデルを読み込み中…';
+    if(url.indexOf('/textures/') !== -1) return 'コースと選手の絵を読み込み中…';
+    return '読み込み中…';
+  };
+  window.HQG._lm.onProgress = function(url, loaded, total){
+    try{
+      var pct = total > 0 ? Math.floor(100 * loaded / total) : 0;
+      if(pct < window.HQG._lmShown) pct = window.HQG._lmShown;
+      window.HQG._lmShown = pct;
+      var bar = document.getElementById('loadBarFill');
+      if(bar) bar.style.width = pct + '%';
+      var track = document.getElementById('loadBarTrack');
+      if(track) track.setAttribute('aria-valuenow', String(pct));
+      var pc = document.getElementById('loadPct');
+      if(pc) pc.textContent = pct + '%';
+      var st = document.getElementById('loadStage');
+      if(st) st.textContent = window.HQG._lmStage(url);
+    }catch(e){}
+  };
+  window.HQG._lm.onLoad = function(){
+    try{
+      var bar = document.getElementById('loadBarFill');
+      if(bar) bar.style.width = '100%';
+      var pc = document.getElementById('loadPct');
+      if(pc) pc.textContent = '100%';
+      var st = document.getElementById('loadStage');
+      if(st) st.textContent = '読み込み完了';
+    }catch(e){}
+  };
+  var TL = new THREE.TextureLoader(window.HQG._lm);
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.42');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.43');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -88,7 +126,7 @@ function _bmOnG(){ _bmDepthG--; if(_bmDepthG <= 0){ _bmDepthG = 0; try{ window.c
 window.HQG._glbLoad = function(url, noBitmap, onOk, onFail){
 window.HQG._decoderReady(function(){
 try{
-var loader = new THREE.GLTFLoader();
+var loader = new THREE.GLTFLoader(window.HQG._lm);
 if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
 if(noBitmap) _bmOffG();
 loader.load(url, function(g){ if(noBitmap) _bmOnG(); onOk(g);}, undefined, function(err){ if(noBitmap) _bmOnG(); onFail(err);});
