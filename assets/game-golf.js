@@ -59,7 +59,7 @@ window.__goatDiagLoopOk = function(slot){ try{ var D = window.__GOAT_DIAG__; if(
   var TL = new THREE.TextureLoader(window.HQG._lm);
   /* v4.9: アセット版数（boot 層の __GOAT_AV__ と連動）。テクスチャ/GLB の URL に付与し、
      30日キャッシュ下でも版上げで確実に差し替わるようにする */
-  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.44');
+  var AVQ = '?v=' + (window.__GOAT_AV__ || '4.45');
   var __WARM = /[?&]warmup=1/.test(location.search); /* v4.5: 先読み時はテクスチャを読み込まない */
   function loadTex(name, srgb, rx, ry){
     if(__WARM) return null;
@@ -8359,7 +8359,15 @@ document.addEventListener('DOMContentLoaded', function () {
        通常カメラはボール後方からピンを見るため、プレイヤーが画角の外（下端のHUD裏）に隠れてしまう。
        そこでホール開始の約2.4秒だけ、同じ3Dシーンを「プレイヤーを横前方から見るカメラ」で右端の小窓に描画する。
        レイアウト寸法は変えず、操作を始めたら即座に消える。 */
-    var pipUntil = 0, pipLabel = null;
+    var pipUntil = 0, pipLabel = null, pipRunning = false;
+    /* v4.45: ラベルの表示位置を決める式（pipLoop 内と同一）。startPip でも呼ぶことで、ループの初回フレームが来る前に左上に表示されるのを防ぐ。 */
+    function positionPipLabel(){
+      if(!pipLabel) return;
+      var W = window.innerWidth, H = window.innerHeight;
+      var S = W < 820 ? 148 : 272;
+      pipLabel.style.right = "12px";
+      pipLabel.style.top = (H - Math.round(H * 0.30) - S - 30) + "px";
+    }
     function cancelPip(){ pipUntil = 0; if(pipLabel){ pipLabel.remove(); pipLabel = null; } }
     ["pointerdown","touchstart"].forEach(function(ev){
       window.addEventListener(ev, function(){ if(Date.now() < pipUntil) cancelPip(); }, { passive:true });
@@ -8374,6 +8382,9 @@ document.addEventListener('DOMContentLoaded', function () {
         pipLabel.style.cssText = "position:fixed;z-index:60;background:rgba(8,10,22,.85);color:#ffd875;border:1px solid rgba(255,216,117,.6);border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 8px;pointer-events:none;font-family:'Cinzel',serif;";
         document.body.appendChild(pipLabel);
       }
+      /* v4.45: 生成直後に本来の位置を付け、死んでいるループを再開する（従来は位置なしで左上に残り、ループが再開されなかった）。 */
+      positionPipLabel();
+      if(!pipRunning){ pipRunning = true; requestAnimationFrame(pipLoop); }
     }
     if(typeof g.loadHole === "function" && !g.__v41CamHooked){
       g.__v41CamHooked = true;
@@ -8393,16 +8404,16 @@ document.addEventListener('DOMContentLoaded', function () {
       /* v4.28 A-10: 期限（pipUntil）を過ぎたら次のフレームを予約せず終了する（従来は期限後も空回りの rAF が常駐していた。PiP の表示期間は同一）。 */
       if(Date.now() > pipUntil){
         if(pipLabel){ pipLabel.remove(); pipLabel = null; }
+        /* v4.45: ループが死んだことを記録する。startPip が再開できるようにする。 */
+        pipRunning = false;
         return;
       }
       if(!g.playerMesh || !g.pinPos){ requestAnimationFrame(pipLoop); return; }
       var W = window.innerWidth, H = window.innerHeight;
       var S = W < 820 ? 148 : 272;
       var x = W - S - 12, yB = Math.round(H * 0.30);
-      if(pipLabel){
-        pipLabel.style.right = "12px";
-        pipLabel.style.top = (H - yB - S - 30) + "px";
-      }
+      /* v4.45: 位置決めは positionPipLabel() に共通化（startPip と同一の式）。 */
+      positionPipLabel();
       if(!pipCam) pipCam = new THREE.PerspectiveCamera(38, 1, 0.1, 600);
       var pp = g.playerMesh.position;
       var toPin = _pipTmp1.set(g.pinPos.x - pp.x, 0, g.pinPos.z - pp.z).normalize();
@@ -8429,6 +8440,8 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch(e){}
       requestAnimationFrame(pipLoop);
     }
+    /* v4.45: 初回フレームで pipUntil=0 のため即終了するが、pipRunning が false になるので startPip が再開できる。 */
+    pipRunning = true;
     requestAnimationFrame(pipLoop);
 
     /* ---- 項目15: 実測フレームレートに応じた適応的解像度（重い端末でのみ自動で軽くし、滑らかさを取り戻す） ---- */
